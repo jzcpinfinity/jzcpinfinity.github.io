@@ -5,69 +5,96 @@
   <title>Jason Zhang</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 40px auto;
-      line-height: 1.6;
-      padding: 0 20px;
-    }
-    nav a {
-      margin-right: 15px;
-      text-decoration: none;
-      color: #0066cc;
-      font-weight: bold;
-    }
-    section {
-      margin-top: 60px;
-    }
-    h1, h2 {
-      margin-bottom: 10px;
-    }
-  </style>
+  <!-- Google Fonts used by the CSS -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Montserrat:400,700&display=swap" rel="stylesheet">
+
+  <!-- Your Hugo Academic CSS -->
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-  <header>
-    <h1>Jason Zhang</h1>
-    <nav>
-      <a href="#home">Home</a>
-      <a href="#projects">Projects</a>
-      <a href="#blog">Blog</a>
-    </nav>
-  </header>
+<!-- NAVBAR -->
+<nav class="navbar navbar-default navbar-fixed-top" id="navbar-main">
+  <div class="universal-wrapper">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="#">Jason Zhang</a>
+    </div>
 
-  <section id="home">
-    <h2>Home</h2>
+    <ul class="nav navbar-nav navbar-right">
+      <li class="active"><a href="#home">Home</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="#blog">Blog</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HOME -->
+<section id="home" class="home-section">
+  <div class="universal-wrapper">
+    <div class="section-heading">
+      <h1>Jason Zhang</h1>
+      <p>Student · Projects · Writing</p>
+    </div>
+
     <p>
-      Hi! I'm Jason Zhang.  
-      This is my personal website where I share my projects and writing.
+      Hi! I’m Jason. This is my personal website where I share my work and writing.
     </p>
-  </section>
+  </div>
+</section>
 
-  <section id="projects">
-    <h2>Projects</h2>
-    <ul>
-      <li><strong>Project 1</strong> – Short description</li>
-      <li><strong>Project 2</strong> – Short description</li>
-      <li><strong>Project 3</strong> – Short description</li>
-    </ul>
-  </section>
+<!-- PROJECTS -->
+<section id="projects" class="home-section">
+  <div class="universal-wrapper">
+    <div class="section-heading">
+      <h1>Projects</h1>
+      <p>Things I’ve worked on</p>
+    </div>
 
-  <section id="blog">
-    <h2>Blog</h2>
-    <ul>
-      <li><a href="#">Post 1: Title</a></li>
-      <li><a href="#">Post 2: Title</a></li>
-      <li><a href="#">Post 3: Title</a></li>
-    </ul>
-  </section>
+    <div class="projects-container">
 
-  <footer>
+      <div class="card-simple">
+        <h3 class="project-title">Project One</h3>
+        <p class="project-summary">Short description of the project.</p>
+        <p class="project-tags">Python · Math · CS</p>
+      </div>
+
+      <div class="card-simple">
+        <h3 class="project-title">Project Two</h3>
+        <p class="project-summary">Another short description.</p>
+        <p class="project-tags">Web · GitHub Pages</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- BLOG -->
+<section id="blog" class="home-section">
+  <div class="universal-wrapper">
+    <div class="section-heading">
+      <h1>Blog</h1>
+      <p>Recent writing</p>
+    </div>
+
+    <article class="card-simple">
+      <h3 class="article-title">First Post</h3>
+      <p>Short preview of the blog post.</p>
+    </article>
+
+    <article class="card-simple">
+      <h3 class="article-title">Second Post</h3>
+      <p>Another short preview.</p>
+    </article>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="universal-wrapper">
     <p>© 2025 Jason Zhang</p>
-  </footer>
+  </div>
+</footer>
 
 </body>
 </html>
