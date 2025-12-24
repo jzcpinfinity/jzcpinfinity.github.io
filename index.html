@@ -5,96 +5,158 @@
   <title>Jason Zhang</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Google Fonts used by the CSS -->
-  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Montserrat:400,700&display=swap" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css?family=Inter:300,400,600|Montserrat:400,700&display=swap" rel="stylesheet">
 
-  <!-- Your Hugo Academic CSS -->
   <link rel="stylesheet" href="style.css">
+
+  <style>
+    /* Minimal styles to match knzhou.github.io feel */
+    body {
+      margin: 0;
+      font-family: Inter, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      transition: background 0.2s, color 0.2s;
+    }
+
+    :root {
+      --bg: #ffffff;
+      --fg: #111111;
+      --muted: #666;
+    }
+
+    body.dark {
+      --bg: #0f1115;
+      --fg: #eaeaea;
+      --muted: #aaa;
+    }
+
+    .top {
+      max-width: 800px;
+      margin: 120px auto 60px;
+      padding: 0 20px;
+    }
+
+    .name {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 1.2rem;
+      margin-bottom: 30px;
+    }
+
+    .nav-links a {
+      margin-right: 18px;
+      text-decoration: none;
+      color: var(--fg);
+      font-weight: 500;
+    }
+
+    .nav-links a:hover {
+      text-decoration: underline;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      cursor: pointer;
+      font-size: 1.2rem;
+    }
+
+    section {
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 0 20px;
+    }
+
+    .card-simple {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--muted);
+    }
+  </style>
 </head>
 
 <body>
 
-<!-- NAVBAR -->
-<nav class="navbar navbar-default navbar-fixed-top" id="navbar-main">
-  <div class="universal-wrapper">
-    <div class="navbar-header">
-      <a class="navbar-brand" href="#">Jason Zhang</a>
-    </div>
+<!-- LIGHT / DARK TOGGLE -->
+<div class="theme-toggle" id="themeToggle">🌙</div>
 
-    <ul class="nav navbar-nav navbar-right">
-      <li class="active"><a href="#home">Home</a></li>
-      <li><a href="#projects">Projects</a></li>
-      <li><a href="#blog">Blog</a></li>
-    </ul>
+<!-- TOP SECTION -->
+<div class="top">
+  <div class="name">Jason Zhang</div>
+  <div class="subtitle">Student · Projects · Writing</div>
+
+  <div class="nav-links">
+    <a href="#projects">Projects</a>
+    <a href="#blog">Blog</a>
   </div>
-</nav>
 
-<!-- HOME -->
-<section id="home" class="home-section">
-  <div class="universal-wrapper">
-    <div class="section-heading">
-      <h1>Jason Zhang</h1>
-      <p>Student · Projects · Writing</p>
-    </div>
-
-    <p>
-      Hi! I’m Jason. This is my personal website where I share my work and writing.
-    </p>
-  </div>
-</section>
+  <p>
+    Hi! I’m Jason. This is my personal website where I share my work and writing.
+  </p>
+</div>
 
 <!-- PROJECTS -->
-<section id="projects" class="home-section">
-  <div class="universal-wrapper">
-    <div class="section-heading">
-      <h1>Projects</h1>
-      <p>Things I’ve worked on</p>
-    </div>
+<section id="projects">
+  <h2>Projects</h2>
 
-    <div class="projects-container">
+  <div class="card-simple">
+    <h3>Project One</h3>
+    <p>Short description of the project.</p>
+    <p><em>Python · Math · CS</em></p>
+  </div>
 
-      <div class="card-simple">
-        <h3 class="project-title">Project One</h3>
-        <p class="project-summary">Short description of the project.</p>
-        <p class="project-tags">Python · Math · CS</p>
-      </div>
-
-      <div class="card-simple">
-        <h3 class="project-title">Project Two</h3>
-        <p class="project-summary">Another short description.</p>
-        <p class="project-tags">Web · GitHub Pages</p>
-      </div>
-
-    </div>
+  <div class="card-simple">
+    <h3>Project Two</h3>
+    <p>Another short description.</p>
+    <p><em>Web · GitHub Pages</em></p>
   </div>
 </section>
 
 <!-- BLOG -->
-<section id="blog" class="home-section">
-  <div class="universal-wrapper">
-    <div class="section-heading">
-      <h1>Blog</h1>
-      <p>Recent writing</p>
-    </div>
+<section id="blog">
+  <h2>Blog</h2>
 
-    <article class="card-simple">
-      <h3 class="article-title">First Post</h3>
-      <p>Short preview of the blog post.</p>
-    </article>
+  <div class="card-simple">
+    <h3>First Post</h3>
+    <p>Short preview of the blog post.</p>
+  </div>
 
-    <article class="card-simple">
-      <h3 class="article-title">Second Post</h3>
-      <p>Another short preview.</p>
-    </article>
+  <div class="card-simple">
+    <h3>Second Post</h3>
+    <p>Another short preview.</p>
   </div>
 </section>
 
-<!-- FOOTER -->
-<footer class="site-footer">
-  <div class="universal-wrapper">
+<footer>
+  <section>
     <p>© 2025 Jason Zhang</p>
-  </div>
+  </section>
 </footer>
+
+<script>
+  const toggle = document.getElementById("themeToggle");
+  const body = document.body;
+
+  // Load saved theme
+  if (localStorage.theme === "dark") {
+    body.classList.add("dark");
+    toggle.textContent = "🌞";
+  }
+
+  toggle.onclick = () => {
+    body.classList.toggle("dark");
+    const dark = body.classList.contains("dark");
+    toggle.textContent = dark ? "🌞" : "🌙";
+    localStorage.theme = dark ? "dark" : "light";
+  };
+</script>
 
 </body>
 </html>
