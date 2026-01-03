@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Blog - Jason Zhang</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Inter:300,400,600|Montserrat:400,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="theme-toggle" id="themeToggle">🌙</div>
+
+<div class="top">
+  <div class="name">Jason Zhang</div>
+  <div class="subtitle">Blog</div>
+  <div class="nav-links">
+    <a href="index.html">About</a>
+    <a href="projects.html">Projects</a>
+    <a href="quotes.html">Quotes</a>
+  </div>
+</div>
+
+<section id="blog">
+  <h2>Blog</h2>
+
+  <div class="card-simple">
+    <h3>First Post</h3>
+    <p>Short preview of the blog post.</p>
+  </div>
+
+  <div class="card-simple">
+    <h3>Second Post</h3>
+    <p>Another short preview.</p>
+  </div>
+</section>
+
+<footer>
+  <section>
+    <p>© 2025 Jason Zhang</p>
+  </section>
+</footer>
+
+<script>
+  const toggle = document.getElementById("themeToggle");
+  const body = document.body;
+  if (localStorage.theme === "dark") {
+    body.classList.add("dark");
+    toggle.textContent = "🌞";
+  }
+  toggle.onclick = () => {
+    body.classList.toggle("dark");
+    const dark = body.classList.contains("dark");
+    toggle.textContent = dark ? "🌞" : "🌙";
+    localStorage.theme = dark ? "dark" : "light";
+  };
+</script>
+
+</body>
+</html>
