@@ -24,4 +24,35 @@
 <section id="quotes">
   <h2>Quotes</h2>
   <p class="description">
-    "Anything that is in the world when you’re born is normal and ordinary and is just a natural part of the way the world works. Anything that's invented between when you’re fifteen and thirty-five is new and exciting and revolutionary and you can probably get a career in it. Anything
+    "Anything that is in the world when you’re born is normal and ordinary and is just a natural part of the way the world works. Anything that's invented between when you’re fifteen and thirty-five is new and exciting and revolutionary and you can probably get a career in it. Anything invented after you’re thirty-five is against the natural order and the beginning of the end." – Douglas Adams
+  </p>
+</section>
+
+<script>
+  // Theme toggle logic
+  const themeToggle = document.getElementById('themeToggle');
+  const body = document.body;
+
+  // Check if user has a saved theme in localStorage
+  if (localStorage.getItem('theme') === 'dark') {
+    body.classList.add('dark');
+    themeToggle.textContent = '☀️';
+  }
+
+  themeToggle.addEventListener('click', () => {
+    body.classList.toggle('dark');
+    
+    // Change icon
+    if (body.classList.contains('dark')) {
+      themeToggle.textContent = '☀️'; // Sun icon for dark mode
+      localStorage.setItem('theme', 'dark');
+    } else {
+      themeToggle.textContent = '🌙'; // Moon icon for light mode
+      localStorage.setItem('theme', 'light');
+    }
+  });
+</script>
+
+</body>
+</html>
+
