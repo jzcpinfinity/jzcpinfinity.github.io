@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Projects - Jason Zhang</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Inter:300,400,600|Montserrat:400,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="theme-toggle" id="themeToggle">🌙</div>
+
+<div class="top">
+  <div class="name">Jason Zhang</div>
+  <div class="subtitle">Projects</div>
+  <div class="nav-links">
+    <a href="index.html">About</a>
+    <a href="blog.html">Blog</a>
+    <a href="quotes.html">Quotes</a>
+  </div>
+</div>
+
+<section id="projects">
+  <h2>Projects</h2>
+
+  <h3>Programming Projects</h3>
+  <p class="description">Stuff I code</p>
+
+  <h3 style="margin-top: 40px;">Blender Art</h3>
+  <p class="description">Stuff I model</p>
+
+  <!-- Embedded video -->
+  <video width="100%" controls>
+    <source src="videos/Holidays2025.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</section>
+
+<footer>
+  <section>
+    <p>© 2025 Jason Zhang</p>
+  </section>
+</footer>
+
+<script>
+  const toggle = document.getElementById("themeToggle");
+  const body = document.body;
+  if (localStorage.theme === "dark") {
+    body.classList.add("dark");
+    toggle.textContent = "🌞";
+  }
+  toggle.onclick = () => {
+    body.classList.toggle("dark");
+    const dark = body.classList.contains("dark");
+    toggle.textContent = dark ? "🌞" : "🌙";
+    localStorage.theme = dark ? "dark" : "light";
+  };
+</script>
+
+</body>
+</html>
