@@ -2,67 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Jason Zhang</title>
+  <title>About - Jason Zhang</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css?family=Inter:300,400,600|Montserrat:400,700&display=swap" rel="stylesheet">
-
-  <!-- External CSS -->
   <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
 <!-- LIGHT / DARK TOGGLE -->
 <div class="theme-toggle" id="themeToggle">🌙</div>
 
-<!-- TOP SECTION -->
 <div class="top">
   <div class="name">Jason Zhang</div>
-  <div class="subtitle">About · Projects · Writing</div>
-
-  <div class="nav-links">
-    <a href="#projects">Projects</a>
-    <a href="#blog">Blog</a>
-  </div>
+  <div class="subtitle">About Me</div>
 
   <p>
     I'm an incoming freshman to Cornell University, planning to major in physics and computer science. This is my personal website where I will share my work and writing.
   </p>
+
+  <p><a href="projects.html">Go to Projects</a></p>
+  <p><a href="blog.html">Go to Blog</a></p>
+  <p><a href="quotes.html">Go to Quotes</a></p>
 </div>
-
-<!-- PROJECTS -->
-<section id="projects">
-  <h2>Projects</h2>
-
-  <h3>Programming Projects</h3>
-  <p class="description">Stuff I code</p>
-
-  <h3 style="margin-top: 40px;">Blender Art</h3>
-  <p class="description">Stuff I model</p>
-
-  <!-- Embedded video -->
-  <video width="100%" controls>
-    <source src="videos/Holidays2025.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
-</section>
-
-<!-- BLOG -->
-<section id="blog">
-  <h2>Blog</h2>
-
-  <div class="card-simple">
-    <h3>First Post</h3>
-    <p>Short preview of the blog post.</p>
-  </div>
-
-  <div class="card-simple">
-    <h3>Second Post</h3>
-    <p>Another short preview.</p>
-  </div>
-</section>
 
 <footer>
   <section>
@@ -74,7 +35,6 @@
   const toggle = document.getElementById("themeToggle");
   const body = document.body;
 
-  // Load saved theme
   if (localStorage.theme === "dark") {
     body.classList.add("dark");
     toggle.textContent = "🌞";
