@@ -14,22 +14,30 @@
 
 <div class="top">
   <div class="name">Jason Zhang</div>
-  <div class="subtitle">About Me</div>
+  <div class="subtitle">Welcome!</div>
 
   <p>
-    I'm an incoming freshman to Cornell University, planning to major in physics and computer science. This is my personal website where I will share my work and writing.
+    I'm a freshman @ Cornell University, studying physics and computer science. This is my personal webpage for me to share and report on my personal projects.
   </p>
 
-  <p><a href="projects.html">Projects</a></p>
+  <p><a href="simulations.html">Projects</a></p>
   <p><a href="blog.html">Blog</a></p>
-  <p><a href="quotes.html">Quotes</a></p>
+  <!-- <p><a href="quotes.html">Quotes</a></p> -->
 </div>
 
-<footer>
-  <section>
-    <p>© 2025 Jason Zhang</p>
-  </section>
-</footer>
+<section id="contact-section">
+  <div class="wip">
+    <img src="media/under_construction.jpg" alt="Under construction" style="width: 100%; height: auto; display: block;">
+    <br>
+    Work In Progress!
+  <p>
+    GitHub (fairly empty — admittedly and regrettably, I never used GitHub until ~5 years after I began to code): <a href="https://github.com/jzcpinfinity">github.com/jzcpinfinity</a><br>
+    University Email: <a href="mailto:jz2532@cornell.edu">jz2532@cornell.edu</a><br>
+    LinkedIn: <a href="https://www.linkedin.com/in/jason-zhang-b90b242a8/">linkedin.com/in/jason-zhang-XXXXX</a><br>
+    Instagram: <a href="https://www.instagram.com/jason_zhang1728/">jason_zhang1728</a><br>
+    Phone: <a href="tel:3107450479">(310) 745-0479</a>
+  </p>
+</section>
 
 <script>
   const toggle = document.getElementById("themeToggle");
@@ -37,13 +45,13 @@
 
   if (localStorage.theme === "dark") {
     body.classList.add("dark");
-    toggle.textContent = "🌞";
+    toggle.textContent = "🔆";
   }
 
   toggle.onclick = () => {
     body.classList.toggle("dark");
     const dark = body.classList.contains("dark");
-    toggle.textContent = dark ? "🌞" : "🌙";
+    toggle.textContent = dark ? "🔆" : "🔅";
     localStorage.theme = dark ? "dark" : "light";
   };
 </script>

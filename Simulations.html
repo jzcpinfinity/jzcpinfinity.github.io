@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulations - Jason Zhang</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Inter:300,400,600|Montserrat:400,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LIGHT / DARK TOGGLE -->
+<div class="theme-toggle" id="themeToggle">🌙</div>
+
+<div class="top">
+  <div class="name">Jason Zhang</div>
+  <div class="subtitle">Simulations</div>
+
+  <p>
+    A list of my projects in graphics/physics programming!
+  </p>
+</div>
+<section id="sims-section">
+
+    <div class="sim-entry">
+        <div class="sim-title">GPU rendered <a href="https://en.wikipedia.org/wiki/Smoothed-particle_hydrodynamics">SPH based</a> Fluid Simulation</div>
+            <div class="video-row">
+                <video src="videos/2D Fluid Final.webm" controls></video>
+                <video src="videos/3D Fluid Final.webm" controls></video>
+                <video src="videos/Fluid Planet Final.webm" controls></video>
+        </div>
+    </div>
+    <br>
+    <div class="sim-entry">
+    <a class="sim-title" href="Simulations/BoltzmanPhaseSim.html">Boltzmann Phase Simulation</a>
+    <p class="sim-desc">Simulates a liquid/vapor phase change with temperature and chemical potential (substitute for pressure) using a Boltzmann distribution. For a temperature-only simulation, click <a href="Simulations/BoltzmanPhaseSim(TempetureOnly).html">here</a>.</p>
+    </div>
+  <div class="sim-entry">
+    <a class="sim-title" href="Simulations/EulerianFluidSim.html">Eulerian Fluid Simulation</a>
+    <p class="sim-desc">Incompressible fluid simulated by enforcing zero-divergence via <a href="https://www.emergentmind.com/topics/gauss-seidel-projection-method">Gauss-Seidel pressure projection</a> (with overrelaxation), and adding semi-Lagrangian advection.</p>
+  </div>
+
+  <div class="sim-entry">
+    <a class="sim-title" href="Simulations/FastCollisions.html">Collision Solver</a>
+    <p class="sim-desc">Efficiently finds and resolves object collisions with Morton code Bounding Box Hierachy implementation.</p>
+  </div>
+
+  <div class="sim-entry">
+    <a class="sim-title" href="Simulations/TriplePendulum.html">Triple Pendulum</a>
+    <p class="sim-desc">Its a triple pendulum.</p>
+  </div>
+
+   <div class="sim-entry">
+    <div class="sim-title"><b>RayTracer</b></div>
+    <p class="sim-desc">Ray tracer with BVH acceleration and motion blur, based on Ray Tracing in One Weekend. Actively adding new features.</p>
+    <div class="video-row">
+        <img src="Media/Raytracer-Spheres.jpeg" alt="Ray tracer render 1">
+        <img src="Media/raytracer-Spheres2.png" alt="Ray tracer render 2">
+    </div>
+    </div>
+
+    <div class="sim-entry">
+    <div class="sim-title"><b>Phasrulum (Slime) Simulation</b></div>
+    <p class="sim-desc"></p>
+    </div>
+
+  <div class="sim-entry">
+    <a class="sim-title" href="https://github.com/jzcpinfinity/Taichi-Simulations">Python Simulations in Taichi</a>
+    <p class="sim-desc">A collection of physics simulations implemented in Taichi, a high-performance programming language for scientific computing on the GPU. 
+    <br>
+    <p>Repository includes:  <a href="https://en.wikipedia.org/wiki/Smoothed-particle_hydrodynamics">SPH</a> fluid simulation, Pool ball simulation, N-body simulation, spring simulation, tectonic plate generator, rocket launch simulation (very basic)</p>
+    </p>
+  </div>
+</section>
+
+<script>
+  const toggle = document.getElementById("themeToggle");
+  const body = document.body;
+
+  if (localStorage.theme === "dark") {
+    body.classList.add("dark");
+    toggle.textContent = "🔆";
+  }
+
+  toggle.onclick = () => {
+    body.classList.toggle("dark");
+    const dark = body.classList.contains("dark");
+    toggle.textContent = dark ? "🔆" : "🔅";
+    localStorage.theme = dark ? "dark" : "light";
+  };
+</script>
+
+</body>
+</html>
