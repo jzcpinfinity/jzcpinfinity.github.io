@@ -19,16 +19,24 @@
   <p>
     A list of my projects in graphics/physics programming!
   </p>
+  <p class="wip-note">Site's a work in progress — more projects being added soon.</p>
 </div>
 <section id="sims-section">
   <div class="sim-entry">
-        <a class="sim-title" href="LightTracing/index.html">Light Tracing</a>
-        <p class="sim-desc">
-            A 2D light-tracing simulation that models rays of light reflecting and
-            refracting through optical elements. Built in Rust with wgpu/WebGPU,
-            with both CPU and GPU renderers.
-        </p>
+    <a class="sim-title" href="LightTracing/index.html">Light Tracing</a>
+    <p class="sim-desc">
+        A 2D light-transport simulator built in Rust with wgpu. It uses iterative path tracing across matching CPU and GPU renderers All objects are smooth dielectrics. 
+    </p>
+    <div class="video-row">
+        <img src="Media/Light-tracing-1.png" alt="Light tracing render 1">
+        <img src="Media/Light-tracing-2.png" alt="Light tracing render 2">
+        <img src="Media/Light-tracing-3.png" alt="Light tracing render 3">
     </div>
+    <p class="sim-credit">
+        Inspired by <a href="https://benedikt-bitterli.me/tantalum/" target="_blank" rel="noopener">
+        Benedikt Bitterli's Tantalum</a>.
+    </p>
+</div>
 
     <div class="sim-entry">
         <div class="sim-title">GPU rendered <a href="https://en.wikipedia.org/wiki/Smoothed-particle_hydrodynamics">SPH based</a> Fluid Simulation</div>
@@ -50,7 +58,7 @@
 
   <div class="sim-entry">
     <a class="sim-title" href="Simulations/FastCollisions.html">Collision Solver</a>
-    <p class="sim-desc">Efficiently finds and resolves object collisions with Morton code Bounding Box Hierachy implementation.</p>
+    <p class="sim-desc">Efficiently detects object collisions with Morton code Bounding Box Hierachy implementation. (Objects turn red upon collision)</p>
   </div>
 
   <div class="sim-entry">
