@@ -16,8 +16,8 @@
   -->
   
 <script type="module">
-import init, * as bindings from '/light-tracing-rs-c4508eb6beddb51b.js';
-const wasm = await init({ module_or_path: '/light-tracing-rs-c4508eb6beddb51b_bg.wasm' });
+import init, * as bindings from '/LightTracing/light-tracing-rs-c4508eb6beddb51b.js';
+const wasm = await init({ module_or_path: '/LightTracing/light-tracing-rs-c4508eb6beddb51b_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -26,7 +26,7 @@ window.wasmBindings = bindings;
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
-<link rel="modulepreload" href="/light-tracing-rs-c4508eb6beddb51b.js" crossorigin="anonymous" integrity="sha384-0MLqoo34CT/r9tTa1x+my4MOf2XIp2YD934afso3DMbTf6Ua+GVSSRu6tagdftAV"><link rel="preload" href="/light-tracing-rs-c4508eb6beddb51b_bg.wasm" crossorigin="anonymous" integrity="sha384-TULz2J/habs4R1QQxaaB3n4Wtu0p/6c4e3SNXjSmttYiuMLH4mQ+nAdFbhuqzwwL" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/LightTracing/light-tracing-rs-c4508eb6beddb51b.js" crossorigin="anonymous" integrity="sha384-0MLqoo34CT/r9tTa1x+my4MOf2XIp2YD934afso3DMbTf6Ua+GVSSRu6tagdftAV"><link rel="preload" href="/LightTracing/light-tracing-rs-c4508eb6beddb51b_bg.wasm" crossorigin="anonymous" integrity="sha384-TULz2J/habs4R1QQxaaB3n4Wtu0p/6c4e3SNXjSmttYiuMLH4mQ+nAdFbhuqzwwL" as="fetch" type="application/wasm"></head>
 <body>
   <p id="loading">Loading Light Tracing&hellip;</p>
 </body>
