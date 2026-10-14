@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shallow water on a cubed sphere - Jason Zhang</title>
+<meta name="description" content="A rotating shallow-water model on an equiangular cubed sphere: geometry, discretization, stability, validation, and a WebGPU port.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}], throwOnError: false});"></script>
+<style>
+  :root {
+    --bg: #f4f3ef; --fg: #2a2b2e; --muted: #696b70; --rule: #d9d7d0;
+    --code-bg: #eae8e2; --link: #2b5ca8; --ph-border: #b4542a; --ph-bg: #f7ece2;
+  }
+  body.dark {
+    --bg: #16181b; --fg: #d8d9dc; --muted: #959aa2; --rule: #2d3035;
+    --code-bg: #1e2125; --link: #8fb3e8; --ph-border: #d98a5a; --ph-bg: #221a14;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  a { color: var(--link); }
+  .back { font-size: 15px; }
+  .theme-toggle { position: fixed; top: 16px; right: 16px; cursor: pointer; font-size: 1.2rem; user-select: none; }
+  h1 { font-size: 2rem; line-height: 1.25; margin: 20px 0 8px; }
+  .desc { color: var(--muted); margin: 0 0 6px; }
+  .date { color: var(--muted); font-size: 15px; margin: 0 0 28px; }
+  h2 { font-size: 1.45rem; margin: 52px 0 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
+  h3 { font-size: 1.12rem; margin: 30px 0 8px; }
+  p, li { overflow-wrap: break-word; }
+  nav.toc { border: 1px solid var(--rule); border-radius: 6px; padding: 12px 18px; margin: 0 0 20px; font-size: 15px; }
+  nav.toc ol { margin: 6px 0 0; padding-left: 22px; }
+  pre {
+    background: var(--code-bg); border-radius: 6px; padding: 12px 14px; overflow-x: auto;
+    font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.88em; }
+  pre code { font-size: inherit; }
+  .src { color: var(--muted); font-size: 13px; margin: -6px 0 18px; }
+  .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+  table { border-collapse: collapse; margin: 12px 0 20px; font-size: 15px; display: block; overflow-x: auto; }
+  th, td { border-bottom: 1px solid var(--rule); padding: 5px 12px 5px 0; text-align: left; white-space: nowrap; }
+  th { font-weight: 600; }
+  figure { margin: 24px 0; }
+  figcaption { color: var(--muted); font-size: 14.5px; margin-top: 6px; }
+  .img-slot .placeholder {
+    border: 2px dashed var(--ph-border); background: var(--ph-bg); color: var(--ph-border);
+    border-radius: 6px; padding: 34px 16px; text-align: center; font-weight: 600; font-size: 15px;
+  }
+  .img-slot img { max-width: 100%; height: auto; display: block; border-radius: 4px; }
+  @media (max-width: 520px) {
+    body { font-size: 16px; }
+    main { padding: 24px 16px 60px; }
+    h1 { font-size: 1.6rem; }
+    .katex-display { font-size: 0.92em; }
+    .katex-display > .katex > .katex-html { white-space: nowrap; }
+    .katex-display > .katex > .katex-html > .tag { position: static; display: inline-block; margin-left: 1.2em; }
+  }
+</style>
+</head>
+<body>
+<script>
+  if (localStorage.theme === "dark") document.body.classList.add("dark");
+</script>
+<div class="theme-toggle" id="themeToggle" title="Light / dark">🌙</div>
+<main>
+<a class="back" href="blog.html">&larr; Blog</a>
+
+<h1>Atmospheric simulation</h1>
+
+<nav class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#overview">Motivation</a></li>
+  <li><a href="#grid">Putting a grid on a sphere</a></li>
+  <li><a href="#metric">Measuring distance on a bent grid</a></li>
+  <li><a href="#equations">Rewriting the equations for the grid</a></li>
+  <li><a href="#discretization">Turning the equations into code</a></li>
+  <li><a href="#halo">Reaching across panel edges</a></li>
+  <li><a href="#stability">The first run blew up</a></li>
+  <li><a href="#forcing">Choosing what to simulate</a></li>
+  <li><a href="#gpu">Moving it to the GPU</a></li>
+  <li><a href="#rendering">Making it look like something</a></li>
+  <li><a href="#validation">How well does it work?</a></li>
+</ol>
+</nav>
+
+<h2 id="motivation">1. Motivation</h2>
+
+<p>Recently I’ve become more and more interested in earth science and geophysics. As a freshman physics major, I’m still figuring out what exactly I want to focus on, and earth science and astronomy have become increasingly attractive. To be frank, these are the subjects that first made me want to be a physicist, and lately I seem to be coming back full circle.</p>
+
+<p>I’ve previously made fluid simulations in Unity and JavaScript. On top of that, I’ve been wanting to build up my skills in computational physics and get more into the nitty gritty of differential equations and coordinate transformations. I also just wanted a project to work on in my free time, and all of these things seemed to converge on one idea: a planetary weather model.</p>
+
+<p>Lately I’ve been going down a rabbit hole of astronomy papers on the atmospheric evolution of bodies in the solar system as the sun ages and dies. In the long term, I’d love to build on what I learn here and turn it into my own framework for experimenting with simulations of other well-observed celestial bodies.</p>
+
+<h2 id="setup">2. Constants</h2>
+
+<p><p>These are the constants I'm using, all based on Earth:</p>
+
+<table>
+<tr><th>Constant</th><th>Symbol</th><th>Value</th></tr>
+<tr><td>Planet radius</td><td>\(a\)</td><td>6.37122 × 10<sup>6</sup> m</td></tr>
+<tr><td>Rotation rate</td><td>\(\Omega\)</td><td>7.292 × 10<sup>-5</sup> rad/s</td></tr>
+<tr><td>Gravity</td><td>\(g\)</td><td>9.80616 m/s²</td></tr>
+<tr><td>Mean layer depth (Galewsky test)</td><td>\(H\)</td><td>10 km</td></tr>
+<tr><td>Gravity wave speed</td><td>\(\sqrt{gH}\)</td><td>≈ 313 m/s</td></tr>
+</table>
+
+<h2 id="grid">3. The grid</h2>
+
+<p>First I needed a sphere and a way to tile it into cells. My model is <a href="https://en.wikipedia.org/wiki/Lagrangian_and_Eulerian_specification_of_the_flow_field">Eulerian</a>, so the shape of those cells decides a lot about how the rest of the code works.</p>
+
+<p>There are plenty of ways to tile a sphere. The obvious one is latitude and longitude, the same grid as every map, so that's where I started. Before writing any code I worked out what it would cost, and the numbers were bad.</p>
+
+<p>On a lat-lon grid with spacing \(\Delta\lambda\), a cell's east-west width is \(a\cos\varphi\,\Delta\lambda\). At \(1^\circ\) spacing that's 111.2 km at the equator, 55.6 km at \(60^\circ\), 19.3 km at \(80^\circ\), and just 0.97 km in the row of cells next to the pole.</p>
+
+<p>Those tiny cells are a problem because of how explicit time stepping works. Each step, information can only move one cell, so the step has to be short enough that the fastest wave in the model can't skip over a cell. That's the CFL condition, and it comes back later when my first run blows up. In the Galewsky test I was planning to run, the fastest signal is that 313 m/s gravity wave riding on an 80 m/s jet. On the 0.97 km polar cells, a safe step would be about 1.2 seconds. Simulating six days would take over 400,000 steps, and nearly all of that effort would go into a handful of tiny cells around the poles.</p>
+
+<p>The pole itself is a problem too. "East" stops meaning anything there: \(\partial/\partial\lambda\) has zero length, so you can't even write the wind in \((\lambda,\varphi)\) components. Real lat-lon models work around this with polar filters or semi-Lagrangian schemes. I'd rather use a grid with no poles at all.</p>
+
+<p>Two grids like that kept coming up. The icosahedral grid starts from an icosahedron, splits each of its 20 triangular faces into smaller triangles, and pushes the points out onto the sphere. Its cells come out very even in size, and you can use the triangles directly or group them into hexagons, with 12 pentagons left over at the icosahedron's corners. The cubed sphere starts from a cube instead. Each of its six faces gets an ordinary square grid, and the grid is projected onto the sphere.</p>
+
+<p>I went with the cubed sphere. Each panel is a square grid of four-sided cells, so I could store a field as a plain 2D array per panel and use the same finite-difference stencils I already knew from flat grids. An icosahedral grid needs an unstructured mesh where every cell keeps a list of its neighbours, and that was more new machinery than I wanted to take on here.</p>
+
+<figure class="img-slot" id="fig-1"><!-- INSERT IMAGE fig-1: side-by-side diagram of a 10-degree lat-lon grid and a C9 cubed sphere, both viewed from about 60N, showing the lat-lon cells pinching to slivers at the pole and the cubed-sphere cells staying roughly square --><div class="placeholder">[FIG 1: lat-lon grid near the pole vs cubed sphere, same view]</div><figcaption>Figure 1. A latitude-longitude grid (left) and a cubed sphere (right), seen from 60°N. The lat-lon cells shrink to zero width at the pole; the cubed-sphere cells stay within a factor of 1.4 in width everywhere.</figcaption></figure>
+<figure class="img-slot" id="fig-1"><!-- INSERT IMAGE fig-1: side-by-side diagram of a 10-degree lat-lon grid and a C9 cubed sphere, both viewed from about 60N, showing the lat-lon cells pinching to slivers at the pole and the cubed-sphere cells staying roughly square --><div class="placeholder">[FIG 1: lat-lon grid near the pole vs cubed sphere, same view]</div><figcaption>Figure 1. A latitude-longitude grid (left) and a cubed sphere (right), seen from 60°N. The lat-lon cells shrink to zero width at the pole; the cubed-sphere cells stay within a factor of 1.4 in width everywhere.</figcaption></figure>
+
+<h3>The cubed sphere</h3>
+
+<p>The idea is simple. Put a cube around the sphere, draw a square grid on each face, and project every grid point inward onto the sphere along a ray from the centre. That's the gnomonic projection. You end up with six patches, which I'll call panels, that together cover the sphere with no singular points. Panels 0 to 3 go around the equator, panel 4 is the north cap and panel 5 is the south.</p>
+
+<p>Each panel gets its own coordinates \((\alpha,\beta)\), both running from \(-\pi/4\) to \(\pi/4\). With \(X = \tan\alpha\) and \(Y = \tan\beta\), the point on the cube face is a simple vector in \(X\) and \(Y\), different for each panel, and dividing by its length puts it on the sphere:</p>
+
+$$\mathbf P(\alpha,\beta) = \frac{\mathbf c(X,Y)}{\lVert \mathbf c(X,Y)\rVert}, \qquad \mathbf c = (1, X, Y)\ \text{on panel 0}. \tag{1}$$
+
+<pre><code>export function cubePoint(face: number, x: number, y: number): Vec3 {
+  switch (face) {
+    case 0: return [1, x, y];
+    case 1: return [-x, 1, y];
+    case 2: return [-1, -x, y];
+    case 3: return [x, -1, y];
+    case 4: return [-y, x, 1];
+    case 5: return [y, x, -1];
+    default: throw new Error(`unknown face ${face}`);
+  }
+}</code></pre>
+<p class="src">grid/cubedSphere.ts. +X points at (0°, 0°), +Y at (0°, 90°E), +Z at the North Pole.</p>
+
+<p>Getting these six lines right took more care than I expected. The polar panels have to be rotated so that their edges meet the equatorial panels point for point. At one point I edited this function and produced a panel that was mirrored. Everything still looked fine on screen, which is what made it dangerous. I only caught it once I started measuring distances on the grid, which I'll get to in a bit.</p>
+
+<p>I also wondered why everyone uses \(\tan\alpha\) instead of spacing the points evenly across the cube face, so I tried the numbers both ways. If the grid is even on the cube face, the cells near a face's edge cover only about half the angle of the cells at its centre (0.51× at C48), because \(\arctan\) flattens out. Spacing the grid evenly in angle instead, which is called the equiangular cubed sphere, keeps the biggest and smallest cells within a factor of about 1.4 of each other.</p>
+
+<p>A grid with \(N\) cells along each panel edge is called C\(N\). It has \(6N^2\) cells and spacing \(\Delta = \pi/(2N)\) radians. My main grid is C96: 55,296 cells, about the same as the 64,800 of a \(1^\circ\) lat-lon grid. Its cells range from 74.3 km to 104.2 km wide, and the Galewsky case runs at 95 s per step instead of 1.2 s. That one number is why I chose this grid.</p>
+
+<figure class="img-slot" id="fig-2"><!-- INSERT IMAGE fig-2: the Stage 1 globe at C12 with checkerboard cells and panel edges on, camera looking at a cube corner so three panels meet in the middle (images/weather-model/grid-c12.jpg already has this) --><div class="placeholder">[FIG 2: C12 cubed sphere looking at a cube corner]</div><figcaption>Figure 2. The C12 grid, one colour per panel, viewed at a cube corner where three panels meet. Grid lines are straight on each face of the cube and bend where they cross onto the next panel.</figcaption></figure>
+
+<p>Of course, it isn't free. Instead of one coordinate system I now had six. The grid lines bend where they cross from one panel to the next, and at the 8 corners of the cube only three cells meet instead of four. Most of the rest of this project was dealing with those two facts.</p>
+
+<h2 id="swe">4. The equations that move the air</h2>
+
+<p>With a grid in hand, I needed something to actually run on it. I went with the rotating shallow-water equations, the simplest model I could find that still behaves like an atmosphere. You treat the atmosphere as one thin layer of fluid with depth \(h\), sliding over a sphere of radius \(a\) that spins at rate \(\Omega\). Where the layer is deeper it pushes outward, the push creates wind, and the planet's rotation bends that wind sideways. In vector form,</p>
+
+$$\frac{\partial \mathbf u}{\partial t} + (\mathbf u\cdot\nabla)\mathbf u + f\,\hat{\mathbf k}\times\mathbf u + g\nabla h = 0, \qquad \frac{\partial h}{\partial t} + \nabla\cdot(h\mathbf u) = 0. \tag{2}$$
+
+<p>Here \(\mathbf u\) is the horizontal wind, \(\hat{\mathbf k}\) is the outward unit normal, \(g\) is gravity, and \(f = 2\Omega\sin\varphi\) is the Coriolis parameter at latitude \(\varphi\). Once I stared at it for a while, the first equation turned out to be Newton's second law for a column of fluid. The second says fluid is neither created nor destroyed: depth only changes when more flows in than out.</p>
+
+<p>I want to be upfront about what this model leaves out. There are no mountains, no temperature or moisture, no sun, no friction with the ground and no forcing of any kind. Everything that happens comes from the starting state. What you do get is a lot of real atmospheric behaviour: gravity waves, Rossby waves, winds balancing pressure, and jets that go unstable and break into vortices. Atmospheric models use this exact system to test their horizontal dynamics, and that was the appeal for me. There are published test cases with known answers, so I could measure whether my code was right instead of eyeballing it.</p>
+
+<p>The advection term \((\mathbf u\cdot\nabla)\mathbf u\) worried me as soon as I thought about writing it on my six bent panels. In components it needs extra correction terms (Christoffel symbols) for how the coordinate directions change from point to point. Then I found a vector identity that gets rid of the problem, \((\mathbf u\cdot\nabla)\mathbf u = \zeta\,\hat{\mathbf k}\times\mathbf u + \nabla(|\mathbf u|^2/2)\), where \(\zeta = \hat{\mathbf k}\cdot(\nabla\times\mathbf u)\) is the relative vorticity, how fast the fluid is spinning locally. Substituting it in gives</p>
+
+$$\frac{\partial \mathbf u}{\partial t} + (\zeta + f)\,\hat{\mathbf k}\times\mathbf u + \nabla(K + g h) = 0, \qquad K = \tfrac12|\mathbf u|^2. \tag{3}$$
+
+<p>This is called the vector-invariant form. What I like about it is that every term is now either the gradient of a scalar or a cross product with the surface normal, and both of those turn out to be easy to write in any coordinate system. With six of them to deal with, that was exactly what I needed.</p>
+
+<h2 id="metric">3. Measuring distance on a bent grid</h2>
+
+<p>My solver does all its calculus in \((\alpha,\beta)\), but the physics happens in metres. When I started I assumed a step of \(\Delta\) in \(\alpha\) would be roughly the same distance everywhere on a panel. It isn't, and the grid lines don't even cross at right angles except along the panel's centre lines. The tool that keeps track of both of these is the metric tensor, and this was the first genuinely new piece of maths I had to learn for the project.</p>
+
+<h3>Deriving it</h3>
+
+<p>Start from the embedding (3). If you nudge \(\alpha\) a little, the point on the sphere moves in the direction \(\mathbf e_\alpha = \partial\mathbf P/\partial\alpha\); nudging \(\beta\) moves it along \(\mathbf e_\beta = \partial\mathbf P/\partial\beta\). These are the tangent vectors. A small step in both moves the point by \(d\mathbf P = \mathbf e_\alpha d\alpha + \mathbf e_\beta d\beta\), so the squared distance travelled is</p>
+
+$$ds^2 = g_{\alpha\alpha}\,d\alpha^2 + 2g_{\alpha\beta}\,d\alpha\,d\beta + g_{\beta\beta}\,d\beta^2, \qquad g_{ij} = \mathbf e_i\cdot\mathbf e_j. \tag{4}$$
+
+<p>That 2×2 matrix of dot products, \(g_{ij}\), is the metric. The diagonal terms say how far one unit of each coordinate takes you, and the off-diagonal term says how far from perpendicular the grid lines are.</p>
+
+<p>I only had to compute it on panel 0, because every other panel is a rotation of it and rotations don't change dot products. With \(\rho^2 = 1 + X^2 + Y^2\) and \(\mathbf c = (1, X, Y)\), the quotient rule gives</p>
+
+$$\frac{\partial\mathbf P}{\partial X} = \frac{(0,1,0)\rho^2 - X(1,X,Y)}{\rho^3} = \frac{(-X,\ 1+Y^2,\ -XY)}{\rho^3}, \qquad \frac{\partial\mathbf P}{\partial Y} = \frac{(-Y,\ -XY,\ 1+X^2)}{\rho^3}.$$
+
+<p>Taking dot products gives \(|\partial_X\mathbf P|^2 = (1+Y^2)/\rho^4\), \(|\partial_Y\mathbf P|^2 = (1+X^2)/\rho^4\) and \(\partial_X\mathbf P\cdot\partial_Y\mathbf P = -XY/\rho^4\). Then the chain rule converts from \(X\) to \(\alpha\) with \(dX/d\alpha = 1 + X^2 = 1/\cos^2\alpha\), and likewise for \(\beta\):</p>
+
+$$g_{ij} = \frac{1}{\rho^4\cos^2\alpha\,\cos^2\beta}\begin{pmatrix}1+X^2 & -XY\\ -XY & 1+Y^2\end{pmatrix}. \tag{5}$$
+
+<p>One more quantity falls out of this. The determinant is \((1+X^2)(1+Y^2) - X^2Y^2 = \rho^2\) times the prefactor squared, and its square root is the area of a small \(d\alpha\times d\beta\) patch:</p>
+
+$$\sqrt g = \sqrt{\det g_{ij}} = \frac{1}{\rho^3\cos^2\alpha\,\cos^2\beta}. \tag{6}$$
+
+<pre><code>export function metricAt(alpha: number, beta: number): Metric {
+  const X = Math.tan(alpha);
+  const Y = Math.tan(beta);
+  const rho2 = 1 + X * X + Y * Y;
+  const cos2 = Math.cos(alpha) ** 2 * Math.cos(beta) ** 2;
+  const f = 1 / (rho2 * rho2 * cos2);
+  return {
+    gAA: f * (1 + X * X),
+    gAB: -f * X * Y,
+    gBB: f * (1 + Y * Y),
+    sqrtG: 1 / (rho2 * Math.sqrt(rho2) * cos2),
+  };
+}</code></pre>
+<p class="src">grid/metric.ts. <code>f</code> is the prefactor of (5); <code>gAA</code> is \(f(1+X^2)\), which equals \((1+X^2)^2(1+Y^2)/\rho^4\).</p>
+
+<p>I didn't trust the algebra on its own, so the code also builds \(\mathbf e_\alpha\) and \(\mathbf e_\beta\) directly by differentiating \(\mathbf c/\lVert\mathbf c\rVert\), and the tests check that (5) matches their dot products on all six panels. They also check that \(\mathbf e_\alpha\times\mathbf e_\beta\) has length \(\sqrt g\) and points outward. That last check is the one that caught my mirrored panel from section 2. A mirrored panel has a perfectly correct-looking metric, but its normal points into the sphere, and that silently flips the sign of the Coriolis force on that panel.</p>
+
+<h3>What the numbers say</h3>
+
+<p>Plugging in a few points made the metric feel concrete for me:</p>
+
+<ul>
+<li><strong>Panel centre</strong> (\(X = Y = 0\)): \(g_{ij}\) is the identity and \(\sqrt g = 1\). Locally it's a plain square grid.</li>
+<li><strong>Middle of a panel edge</strong> (\(\alpha = \pi/4,\ \beta = 0\)): \(g_{\alpha\alpha} = 1\) but \(g_{\beta\beta} = 1/2\), so cells there are only \(1/\sqrt2 \approx 0.71\) as wide along the edge as at the centre, and \(\sqrt g = 0.707\).</li>
+<li><strong>Corner</strong> (\(X = Y = 1\)): \(\sqrt g = 0.770\), and the angle between grid lines satisfies \(\cos\theta = g_{\alpha\beta}/\sqrt{g_{\alpha\alpha}g_{\beta\beta}} = -1/2\), so \(\theta = 120^\circ\). That was a nice moment: three corners of \(120^\circ\) make exactly the \(360^\circ\) around the point where three panels meet.</li>
+</ul>
+
+<p>At C96 all of this works out to physical cell widths between 74.3 km and 104.2 km.</p>
+
+<figure class="img-slot" id="fig-3"><!-- INSERT IMAGE fig-3: heat map of sqrt(g) over one panel (alpha, beta from -45 to 45 degrees), with a few contour lines, plus a small inset of the grid-line angle at a corner. Produce with a short script over metricAt on a 200x200 grid. --><div class="placeholder">[FIG 3: √g over one panel, with the 120° corner angle marked]</div><figcaption>Figure 3. The area factor \(\sqrt g\) over one panel. It is 1 at the centre, 0.707 at the edge midpoints and 0.770 at the corners, where the grid lines meet at 120°.</figcaption></figure>
+
+<h3>Exact cell areas</h3>
+
+<p>The area of a cell is \(\iint \sqrt g\,d\alpha\,d\beta\). My first instinct was to approximate it as \(\sqrt g\,\Delta^2\) at the cell centre, but that is only second-order accurate. It turns out the integral has a closed form. Changing variables to \(X, Y\) cancels the cosines and leaves \(\iint (1+X^2+Y^2)^{-3/2}\,dX\,dY\), whose antiderivative is \(F(X,Y) = \arctan\!\big(XY/\sqrt{1+X^2+Y^2}\big)\). Then a cell's area is exact by adding and subtracting \(F\) at its four corners:</p>
+
+$$A_{ij} = a^2\big[F(X_2,Y_2) - F(X_1,Y_2) - F(X_2,Y_1) + F(X_1,Y_1)\big]. \tag{7}$$
+
+<p>As a sanity check, a whole panel gives \(4\arctan(1/\sqrt3) = 2\pi/3\), and six of them give \(4\pi\). In the code, all the cell areas sum to \(4\pi a^2\) to about \(10^{-16}\), which is just rounding. This mattered more than it sounds. I store mass as depth times area (section 5), so exact areas mean the total mass is exactly what it should be, not approximately.</p>
+
+<h3>Two kinds of vector components</h3>
+
+<p>This was the part that confused me longest. When the basis vectors aren't perpendicular, a vector has two different, equally natural sets of components:</p>
+
+<ul>
+<li><strong>Contravariant</strong> components \(u^\alpha, u^\beta\) are the coefficients when you build the vector from the basis: \(\mathbf u = u^\alpha\mathbf e_\alpha + u^\beta\mathbf e_\beta\). They are rates of change of the coordinates, \(u^\alpha = d\alpha/dt\), so they say how fast fluid crosses a line of constant \(\alpha\).</li>
+<li><strong>Covariant</strong> components \(u_\alpha, u_\beta\) are projections onto the basis: \(u_\alpha = \mathbf u\cdot\mathbf e_\alpha\). They're what a gradient naturally gives you: \((\nabla\phi)_\alpha = \partial\phi/\partial\alpha\).</li>
+</ul>
+
+<p>The metric converts between them:</p>
+
+$$u_i = g_{ij}u^j, \qquad u^i = g^{ij}u_j, \qquad g^{ij} = \frac{1}{\det g}\begin{pmatrix}g_{\beta\beta} & -g_{\alpha\beta}\\ -g_{\alpha\beta} & g_{\alpha\alpha}\end{pmatrix}. \tag{8}$$
+
+<p>On a Cartesian grid the two sets are identical, which is why I'd never had to think about them. My model stores the wind as covariant components and converts ("raises the index") whenever it needs a flux. In the code everything is scaled to radius \(a\): the basis becomes \(a\mathbf e_i\), so \(g_{ij}\to a^2g_{ij}\), \(\sqrt g\to a^2\sqrt g\) and \(g^{ij}\to g^{ij}/a^2\). The stored wind \(u_\alpha = \mathbf u\cdot a\mathbf e_\alpha\) has units of m²/s, and \(u^\alpha\) is in rad/s.</p>
+
+<h3>What if you just skip all this?</h3>
+
+<p>I did ask myself whether the metric was really necessary, or whether I could treat each panel as a flat square grid with spacing \(a\Delta\). The numbers above answer it. Near a panel edge the real spacing along the edge is \(0.71\,a\Delta\), so every derivative in that direction would be off by up to 41%. And that error is built into the geometry, so it doesn't shrink when you refine the grid. Areas would be wrong by the same factor, so a perfectly flat layer of fluid would have more mass in some cells than others and would start moving on its own. Near the corners, where the grid lines are 60° off perpendicular, mixing up \(u_\alpha\) and \(u^\alpha\) would push fluid through the wrong faces.</p>
+
+<h2 id="equations">4. Rewriting the equations for the grid</h2>
+
+<p>With the metric in hand, I could finally write (2) in panel coordinates. The trick is to dot the whole equation with \(a\mathbf e_\alpha\) and then \(a\mathbf e_\beta\), which turns one vector equation into two scalar ones for the covariant components.</p>
+
+<p>Most terms are easy. The basis doesn't change in time, so \(\partial_t\mathbf u\cdot a\mathbf e_\alpha = \partial_t u_\alpha\). For any scalar, \(\nabla\phi\cdot a\mathbf e_\alpha = \partial\phi/\partial\alpha\), because \(a\mathbf e_\alpha\) is exactly the displacement per unit of \(\alpha\). The interesting one is the cross product. Writing \(\mathbf u = u^\alpha\mathbf e_\alpha + u^\beta\mathbf e_\beta\), the \(u^\alpha\) part drops out, and what's left is</p>
+
+$$(\hat{\mathbf k}\times\mathbf e_\beta)\cdot\mathbf e_\alpha = \hat{\mathbf k}\cdot(\mathbf e_\beta\times\mathbf e_\alpha) = -\sqrt g,$$
+
+<p>because \(\mathbf e_\alpha\times\mathbf e_\beta\) points outward with length \(\sqrt g\). (This is exactly where the mirrored panel would have bitten me.) So \((\hat{\mathbf k}\times\mathbf u)\cdot\mathbf e_\alpha = -\sqrt g\,u^\beta\), and in the same way it's \(+\sqrt g\,u^\alpha\) for \(\beta\). Putting it together:</p>
+
+$$\frac{\partial u_\alpha}{\partial t} = (\zeta+f)\sqrt g\,u^\beta - \frac{\partial\Phi}{\partial\alpha}, \qquad \frac{\partial u_\beta}{\partial t} = -(\zeta+f)\sqrt g\,u^\alpha - \frac{\partial\Phi}{\partial\beta}, \qquad \Phi = K + gh, \tag{9}$$
+
+<p>with \(K = \tfrac12(u_\alpha u^\alpha + u_\beta u^\beta)\), one component of each type. The vorticity comes from Stokes' theorem on a small \(d\alpha\times d\beta\) cell, and continuity from the divergence theorem:</p>
+
+$$\zeta = \frac{1}{\sqrt g}\left(\frac{\partial u_\beta}{\partial\alpha} - \frac{\partial u_\alpha}{\partial\beta}\right), \tag{10}$$
+
+$$\frac{\partial h}{\partial t} = -\frac{1}{\sqrt g}\left[\frac{\partial}{\partial\alpha}\big(\sqrt g\,h\,u^\alpha\big) + \frac{\partial}{\partial\beta}\big(\sqrt g\,h\,u^\beta\big)\right]. \tag{11}$$
+
+<p>A good check: set \(\sqrt g = 1\) and \(g_{ij} = \delta_{ij}\), and these collapse to the flat-grid equations, \(\partial_t u = (\zeta+f)v - \partial_x(K+gh)\) and friends. The metric only appears in two places, \(\sqrt g\) and the conversion between \(u_i\) and \(u^i\), and that was the payoff of using the vector-invariant form. The right-hand side of the model follows (9) to (11) line by line:</p>
+
+<pre><code>rhs(s: State, out: State): void {
+  const { geo, cA, cB, phi, FA, FB, zeta, gA, gB, hPoint: h } = this;
+  meanToPoint(geo, s.h, h, phi); // phi doubles as scratch here
+  fillScalarHalo(this.halo, h);
+  fillVectorHalo(this.halo, s.uA, s.uB);
+  contravariant(geo, s.uA, s.uB, cA, cB);
+  // ...
+  for (let p = 0; p &lt; 6; p++) {
+    for (let l = 0, k = p * ps; l &lt; ps; l++, k++) {
+      phi[k] = 0.5 * (s.uA[k] * cA[k] + s.uB[k] * cB[k]) + g * h[k];
+      FA[k] = geo.sqrtG[l] * h[k] * cA[k];
+      FB[k] = geo.sqrtG[l] * h[k] * cB[k];
+    }
+  }
+      // ...
+      for (let i = 0; i &lt; N; i++, k++) {
+        const q = (zeta[k] + this.f[k]) * geo.sqrtG[k - p * ps];
+        out.uA[k] = q * cB[k] - gA[k];
+        out.uB[k] = -q * cA[k] - gB[k];
+      }</code></pre>
+<p class="src">solver/cpu/swe.ts. <code>cA</code>, <code>cB</code> are \(u^\alpha, u^\beta\); <code>q</code> is \((\zeta+f)\sqrt g\); <code>FA</code> is \(\sqrt g\,h\,u^\alpha\) from (11).</p>
+
+<p>For the Coriolis parameter I compute \(f = 2\Omega\,(\mathbf P\cdot\hat{\boldsymbol\omega})\) at each cell, where \(\hat{\boldsymbol\omega}\) is the unit rotation axis. For Earth that's just \(2\Omega\sin\varphi\), but one of the test cases tilts the rotation axis, and writing it this way meant that case needed no special code.</p>
+
+<h2 id="discretization">5. Turning the equations into code</h2>
+
+<p>Now the equations had to become arithmetic on arrays. I kept every variable at the cell centre (an "A-grid"), which keeps the code simple. I'd find out later that this choice has a cost. Depth and wind are handled differently, and the depth turned out to need the more careful treatment.</p>
+
+<h3>Depth: keep track of mass exactly</h3>
+
+<p>I wanted mass to be conserved exactly, not just approximately, so I store the depth as the average over each cell, \(\bar h_{ij}\). Then the total mass is exactly \(\sum \bar h_{ij}A_{ij}\), using the exact areas from (7). Integrating (11) over one cell turns it into bookkeeping: the depth changes by whatever flows in through the four faces minus whatever flows out. With \(F^\alpha = \sqrt g\,h\,u^\alpha\) (a-scaled), the flow through a face of constant \(\alpha\) is \(\Delta\,\overline{F^\alpha}\), where the bar means the average along the face, and</p>
+
+$$\frac{d\bar h_{ij}}{dt} = -\frac{\Delta}{A_{ij}}\Big[\overline{F^\alpha}_{i+\frac12} - \overline{F^\alpha}_{i-\frac12} + \overline{F^\beta}_{j+\frac12} - \overline{F^\beta}_{j-\frac12}\Big]. \tag{12}$$
+
+<p>The nice property is that every face flux is subtracted from one cell and added to its neighbour, so the total \(\sum\bar h A\) can only change by rounding error. Getting the face averages to fourth-order accuracy took two steps. First, interpolate \(F\) from the cell centres onto the face. Then correct for the fact that the face average of a smooth function differs from its value on the face line by \(\tfrac{\Delta^2}{24}\partial^2 G/\partial s^2\), where \(s\) runs along the face:</p>
+
+$$G_{i-\frac12} = \frac{-F_{i-2} + 9F_{i-1} + 9F_i - F_{i+1}}{16}, \qquad \overline{F}_{i-\frac12,\,j} = G_{i-\frac12,\,j} + \frac{G_{i-\frac12,\,j+1} - 2G_{i-\frac12,\,j} + G_{i-\frac12,\,j-1}}{24}. \tag{13}$$
+
+<pre><code>for (let r = -1; r &lt;= N; r++) {
+  for (let f = 0; f &lt;= N; f++) {
+    const ka = padIndex(L, p, f, r);
+    GA[ka] = (-FA[ka - 2] + 9 * FA[ka - 1] + 9 * FA[ka] - FA[ka + 1]) / 16;
+    const kb = padIndex(L, p, r, f);
+    GB[kb] = (-FB[kb - 2 * W] + 9 * FB[kb - W] + 9 * FB[kb] - FB[kb + W]) / 16;
+  }
+}
+for (let r = 0; r &lt; N; r++) {
+  for (let f = 0; f &lt;= N; f++) {
+    const ka = padIndex(L, p, f, r);
+    faces[p * nF + r * (N + 1) + f] = GA[ka] + (GA[ka + W] - 2 * GA[ka] + GA[ka - W]) / 24;
+    const kb = padIndex(L, p, r, f);
+    faces[betaFaces + p * nF + f * N + r] = GB[kb] + (GB[kb + 1] - 2 * GB[kb] + GB[kb - 1]) / 24;
+  }
+}</code></pre>
+<p class="src">solver/cpu/operators.ts, <code>fluxDivergence</code>. The first loop computes \(G\) (with one extra row each side); the second applies the along-face correction.</p>
+
+<p>The flux needs \(h\) at points, but I store cell averages, so there's a conversion step. The average of a smooth function over a cell is its centre value plus \(\tfrac{\Delta^2}{24}\) times its second derivatives, so I subtract that back off. One subtlety: the average is over area, so the correction is applied to \(q = \sqrt g\,h\), whose average in \((\alpha,\beta)\) is \(\bar h A/\Delta^2\):</p>
+
+$$h_{ij} = \frac{1}{\sqrt g_{ij}}\left[q_{ij} - \frac{\delta_\alpha^2 q_{ij} + \delta_\beta^2 q_{ij}}{24}\right], \qquad q_{ij} = \frac{\bar h_{ij}A_{ij}}{\Delta^2}. \tag{14}$$
+
+<p>In the first and last cell of each row I swap the second difference \(\delta^2\) for the one-sided \(2q_0 - 5q_1 + 4q_2 - q_3\), so this step never needs data from another panel.</p>
+
+<h3>Wind: plain centred differences</h3>
+
+<p>The wind is simpler. It's stored as point values, and the gradient in (9) and the curl in (10) both use the standard fourth-order centred difference:</p>
+
+$$\frac{\partial\phi}{\partial\alpha}\Big|_i \approx \frac{-\phi_{i+2} + 8\phi_{i+1} - 8\phi_{i-1} + \phi_{i-2}}{12\Delta}. \tag{15}$$
+
+<pre><code>// 12 * d * (derivative) at padded index k along stride s (1 = alpha, W = beta).
+function d4(f: Float64Array, k: number, s: number): number {
+  return -f[k + 2 * s] + 8 * f[k + s] - 8 * f[k - s] + f[k - 2 * s];
+}</code></pre>
+<p class="src">solver/cpu/operators.ts. <code>s</code> is the array stride: 1 for \(\alpha\), the padded row width for \(\beta\).</p>
+
+<h3>My first flux scheme, and why it failed at the edges</h3>
+
+<p>Panel edges caused trouble here too. Both panels compute the flux through their shared face, each from its own data, and they get slightly different answers. If they don't agree exactly, mass leaks. So I pair up every edge face with its twin on the neighbouring panel and replace both with their average. Because equiangular cells line up one-to-one along an edge, every face has an exact twin, and the code checks that instead of assuming it.</p>
+
+<pre><code>export function averageEdgeFluxes(pairs: EdgePairs, faces: Float64Array): void {
+  for (let n = 0; n &lt; pairs.a.length; n++) {
+    const s = pairs.sign[n];
+    const v = 0.5 * (faces[pairs.a[n]] + s * faces[pairs.b[n]]);
+    faces[pairs.a[n]] = v;
+    faces[pairs.b[n]] = s * v;
+  }
+}</code></pre>
+<p class="src">solver/cpu/edgeFlux.ts. <code>sign</code> is \(-1\) where the two panels' axes point opposite ways across the shared face, so after averaging both panels use the same physical flux in (12).</p>
+
+<p>The face averages in (13) weren't my first attempt, though. My first version used a well-known trick: the fourth-order centred derivative can be rewritten exactly as a difference of "numerical fluxes", \((-F_{f-2} + 7F_{f-1} + 7F_f - F_{f+1})/12\). It conserved mass, and in the middle of each panel it was fourth order. But along the panel edges the accuracy fell all the way to first order.</p>
+
+<p>It took me a while to see why. That numerical flux equals the true face flux minus \(\tfrac{\Delta^2}{24}\) times the second derivative across the face, and that second derivative is measured in each panel's own coordinates. The coordinate lines bend at a cube edge, so the two panels disagree at \(O(\Delta^2)\). Averaging two numbers that differ by \(O(\Delta^2)\) still leaves an \(O(\Delta^2)\) error, and dividing by the cell width in (12) turns it into \(O(\Delta)\). The face average in (13) fixes this because it's a property of the face itself, measured along the edge, which both panels share. Both sides now estimate the same physical number, so averaging them costs nothing. Switching to it cut the error in the edge cells by about 400× at C96.</p>
+
+<h2 id="halo">6. Reaching across panel edges</h2>
+
+<p>All the stencils above reach past the current cell: (15) needs two cells on each side, and (13) needs two across and one along. Near a panel edge those cells are on a different panel, with its own coordinates. I wanted every operator to treat a panel as a plain rectangle, so I gave each panel a border of extra "ghost" cells, three deep (\(H = 3\)), stored as an \((N+2H)^2\) block. Before each evaluation of the equations, every ghost cell gets filled with whatever the field actually is at that ghost cell's location. This border is called a halo.</p>
+
+<h3>Finding where a ghost cell is</h3>
+
+<p>The panel's coordinates keep working past \(\pm\pi/4\). For example, the ghost cell \(i = N\) sits at \(\alpha = \pi/4 + \Delta/2\). Feeding that through (3) gives a real point on the sphere. To find which panel owns it, pick the cube face whose axis has the largest component, then divide; that gives the owning panel \(q\) and the point's coordinates \((\alpha_q,\beta_q)\) there. I liked this approach because I never had to write down which edge connects to which, or which way round. The geometry works it out, so I couldn't get an orientation wrong.</p>
+
+<p>The catch is that the grid lines bend at the edge, so \((\alpha_q,\beta_q)\) usually lands between panel \(q\)'s cell centres. If I just copied the nearest cell, the error would be \(O(\Delta)\), and the fourth-order stencils would difference that into an \(O(1)\) error in the derivative, which doesn't shrink at all with resolution. So the value has to be interpolated.</p>
+
+<h3>Cubic interpolation</h3>
+
+<p>On panel \(q\), cell centres sit at fractional index \(f = (\alpha_q + \pi/4)/\Delta - \tfrac12\). I fit a cubic through 4 cells in each direction and evaluate it at the ghost point. For nodes at 0, 1, 2, 3 and evaluation point \(s\), the Lagrange weights are</p>
+
+$$w_0 = -\tfrac{(s-1)(s-2)(s-3)}{6},\quad w_1 = \tfrac{s(s-2)(s-3)}{2},\quad w_2 = -\tfrac{s(s-1)(s-3)}{2},\quad w_3 = \tfrac{s(s-1)(s-2)}{6}. \tag{16}$$
+
+<p>In 2D the weight is the product \(w_m(s_\alpha)\,w_n(s_\beta)\), so each ghost cell is built from 16 cells. That's exact for any bicubic, so the error is \(O(\Delta^4)\).</p>
+
+<pre><code>export function stencil1D(f: number, N: number): { start: number; w: [number, number, number, number] } {
+  const start = Math.min(Math.max(Math.floor(f) - 1, 0), N - STENCIL);
+  return { start, w: lagrange4(f - start) };
+}</code></pre>
+<p class="src">grid/halo.ts. The stencil start is clamped so it never reads another ghost cell.</p>
+
+<p>The clamp was a small decision that paid off later. Near the far side of panel \(q\) it shifts the stencil to be one-sided. That's still fourth order, since a cubic through any 4 points is exact for cubics. More importantly, it means a ghost cell is only ever built from interior cells, never from other ghost cells, so the halo can be filled in any order, in place. When I moved to the GPU this became a single pass. The weights and source cells depend only on the grid, so I compute them once into a table, and filling the halo is just 16 multiply-adds per ghost cell.</p>
+
+<h3>Vectors need extra care</h3>
+
+<p>For the depth, interpolation is all you need. For the wind it isn't, because of how covariant components work. A covariant component \(u_\alpha\) on panel \(q\) is a projection onto \(q\)'s \(\mathbf e_\alpha\), and that direction might line up with panel \(p\)'s \(\mathbf e_\beta\), or point the opposite way. So after interpolating \(q\)'s components, I convert them to a 3D vector using \(q\)'s inverse metric, then project onto \(p\)'s basis. All three steps are linear, so they combine into one \(2\times2\) matrix per ghost cell:</p>
+
+$$\begin{pmatrix}u_{p\alpha}\\ u_{p\beta}\end{pmatrix} = M\begin{pmatrix}u_{q\alpha}\\ u_{q\beta}\end{pmatrix}, \qquad M_{rc} = \sum_k (\mathbf e_{p,r}\cdot\mathbf e_{q,k})\,g_q^{kc}. \tag{17}$$
+
+<pre><code>const ep = tangentBasis(p, a, b);
+const eq = tangentBasis(q, alpha, beta);
+const gi = inverseMetric(metricAt(alpha, beta));
+const c00 = dot(ep.eAlpha, eq.eAlpha), c01 = dot(ep.eAlpha, eq.eBeta);
+const c10 = dot(ep.eBeta, eq.eAlpha), c11 = dot(ep.eBeta, eq.eBeta);
+rot[k * 4 + 0] = c00 * gi.gAA + c01 * gi.gAB;
+rot[k * 4 + 1] = c00 * gi.gAB + c01 * gi.gBB;
+rot[k * 4 + 2] = c10 * gi.gAA + c11 * gi.gAB;
+rot[k * 4 + 3] = c10 * gi.gAB + c11 * gi.gBB;</code></pre>
+<p class="src">grid/halo.ts, <code>buildHaloTable</code>. <code>c00</code> to <code>c11</code> are the dot products \(\mathbf e_{p,r}\cdot\mathbf e_{q,k}\) in (17), and <code>gi</code> is \(g_q^{kc}\).</p>
+
+<p>A quick test I liked: if \(p\) and \(q\) are the same panel, then \(\mathbf e_p\cdot\mathbf e_q = g\), and \(M = g\,g^{-1} = I\).</p>
+
+<h3>Corners</h3>
+
+<p>I expected the 8 cube corners to need special handling. Past each corner there's a diagonal block of ghost cells (for example \(i<0\) and \(j<0\)) where no neighbouring panel lines up with the grid at all. In the end they needed nothing extra. Each of those cells still has a well-defined position on the sphere, the inverse projection still finds the panel that contains it, and the clamped stencil still finds 16 interior cells. The price is that these stencils are the most lopsided, so the corners have the largest halo error. At C48 the worst corner ghost cell is off by \(6.1\times10^{-6}\), about 7× the worst anywhere else.</p>
+
+<figure class="img-slot" id="fig-4"><!-- INSERT IMAGE fig-4: diagram of one panel edge: panel p's last interior columns and its 3 halo columns drawn in p's extended coordinates, overlaid on panel q's grid, with one ghost cell highlighted and its 4x4 source stencil on q shaded. A second small panel showing the corner block. --><div class="placeholder">[FIG 4: ghost cells of panel p landing between cell centres of panel q, with one 4×4 stencil]</div><figcaption>Figure 4. Panel \(p\)'s halo extended past its edge (dashed) lands between panel \(q\)'s cell centres because the grid lines kink at the cube edge. Each ghost value is a cubic interpolation from 16 interior cells of \(q\).</figcaption></figure>
+
+<h3>How accurate is it?</h3>
+
+<p>I tested the halo by filling it for a smooth polynomial field and measuring the worst ghost cell. The errors were \(9.5\times10^{-4}\), \(8.1\times10^{-5}\), \(6.1\times10^{-6}\) and \(4.2\times10^{-7}\) at C12, C24, C48 and C96, an order of accuracy rising from 3.55 towards 4 (3.86 for the last doubling). A solid-body wind, which crosses every kind of edge, converged the same way. I think the orders sit below 4 on the coarse grids because the lopsided corner stencils have larger error constants, but I haven't proven that.</p>
+
+<p>There was one thing about this error I didn't appreciate at first. It's small, but it isn't smooth from one ghost cell to the next, because every ghost cell's stencil sits at a different offset from its source cells. When the solver differentiates a jagged \(O(\Delta^4)\) error, it gets \(O(\Delta^3)\), so on paper the worst-case accuracy in edge cells is third order rather than fourth. That jaggedness turned out to matter for a much bigger reason, which is the next section.</p>
+
+<h2 id="stability">7. The first run blew up</h2>
+
+<h3>Stepping forward in time</h3>
+
+<p>To move the equations forward in time I used the classic fourth-order Runge-Kutta method (RK4): evaluate the right-hand side four times per step and combine the results. Each stage is a combination of conservative updates, so a full step still conserves mass to rounding error.</p>
+
+<pre><code>step(s: State, dt: number): void {
+  const { model, k, tmp } = this;
+  model.rhs(s, k[0]);
+  axpy(tmp, s, k[0], dt / 2);
+  model.rhs(tmp, k[1]);
+  axpy(tmp, s, k[1], dt / 2);
+  model.rhs(tmp, k[2]);
+  axpy(tmp, s, k[2], dt);
+  model.rhs(tmp, k[3]);
+  for (const key of ['h', 'uA', 'uB'] as const) {
+    const y = s[key], a = k[0][key], b = k[1][key], c = k[2][key], d = k[3][key];
+    for (let n = 0; n &lt; y.length; n++) y[n] += (dt / 6) * (a[n] + 2 * b[n] + 2 * c[n] + d[n]);
+  }
+}</code></pre>
+<p class="src">solver/cpu/timestep.ts. Each <code>model.rhs</code> call evaluates (9) and (12) for one stage.</p>
+
+<p>The step size comes from the CFL condition I mentioned in section 2. The fastest signal in the model is a gravity wave carried along by the wind, moving at \(|\mathbf u| + \sqrt{gh}\), and it mustn't cross more than a fraction of the smallest cell in one step. The smallest spacing is the minimum of \(a\Delta\sqrt{\min(g_{\alpha\alpha}, g_{\beta\beta})}\) over all cells, which on this grid is at the panel edges:</p>
+
+$$\Delta t = C\,\frac{\Delta x_{\min}}{\max\big(|\mathbf u| + \sqrt{gh}\big)}, \qquad C = 0.5. \tag{18}$$
+
+<pre><code>export function stableDt(model: ShallowWater, s: State, courant = 0.5): number {
+  const { geo } = model;
+  model.rhs(s, model.newState()); // fills halos and the contravariant wind
+  let maxSpeed = 0;
+  const { N, layout: L } = geo;
+  for (let p = 0; p &lt; 6; p++) {
+    for (let j = 0; j &lt; N; j++) {
+      for (let i = 0; i &lt; N; i++) {
+        const k = p * L.panelSize + (j + L.H) * L.W + i + L.H;
+        const u2 = s.uA[k] * model.cA[k] + s.uB[k] * model.cB[k];
+        maxSpeed = Math.max(maxSpeed, Math.sqrt(Math.max(u2, 0)) + Math.sqrt(model.planet.gravity * s.h[k]));
+      }
+    }
+  }
+  return (courant * geo.minSpacing) / maxSpeed;
+}</code></pre>
+<p class="src">solver/cpu/timestep.ts, <code>stableDt</code>. The wind speed uses \(|\mathbf u|^2 = u_\alpha u^\alpha + u_\beta u^\beta\), one component of each type.</p>
+
+<p>At C96, \(\Delta x_{\min} = 74.3\) km. Williamson's test case 2 (about 3 km deep) runs at 177 s per step, and the Galewsky case (10 km deep, so \(\sqrt{gh}\approx 313\) m/s) at about 95 s. Compare that with the 1.2 s from section 2.</p>
+
+<h3>The checkerboard</h3>
+
+<p>The first real test was Williamson case 2, a flow that should stay perfectly steady forever (section 8 has the details). I ran it at C48 with no damping of any kind, expecting small errors that would stay small. Instead, here's the worst height error at the end of each day:</p>
+
+<table>
+<tr><th>Day</th><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td></tr>
+<tr><th>\(\ell_\infty\) error</th><td>2.9e-6</td><td>1.5e-5</td><td>6.9e-4</td><td>3.9e-2</td><td>0.70</td></tr>
+</table>
+
+<p>From day 2 on the error grows by about 40× every day. Ordinary truncation error builds up slowly and steadily. An error that multiplies by a fixed factor each day is an instability: something in the scheme is feeding on itself. The run already used half the normal time step (Courant number 0.25), so the time stepping wasn't to blame. When I plotted the error, it was a checkerboard, flipping sign from each cell to the next in both directions, starting where the flow crosses a panel edge head-on.</p>
+
+<figure class="img-slot" id="fig-5"><!-- INSERT IMAGE fig-5: height error map (h - exact) for Williamson 2, rotation pi/4, C48, hyperviscosity off (hyperTau = 0), at day 3 or 4, zoomed on a panel edge where the flow crosses it, so the +/- checkerboard is visible cell by cell --><div class="placeholder">[FIG 5: checkerboard error growing at a panel edge, Williamson 2 at C48 with no damping]</div><figcaption>Figure 5. Height error on day 3 of Williamson case 2 at C48 with no damping. The error alternates sign from cell to cell and starts where the flow crosses a panel edge.</figcaption></figure>
+
+<p>Working out why a checkerboard could even exist taught me something about centred differences on an A-grid. Take \(\phi_i = (-1)^i\). Then \(\phi_{i+1} = \phi_{i-1}\) and \(\phi_{i+2} = \phi_{i-2}\), so (15) gives exactly zero, and the face interpolation in (13) gives zero on every face. The scheme literally can't see a checkerboard. One in \(h\) creates no pressure force, and one in the wind has no divergence and no curl. As far as the discrete equations are concerned, it's a steady state with nothing pushing back against it. On a staggered "C-grid", where depth lives at cell centres and wind on the faces, this mode doesn't exist. I'd picked the A-grid for simplicity, and this was the price.</p>
+
+<p>The halo from section 6 is what feeds it. A jagged error always contains some checkerboard, and the edge cells add a little more every step, most where the most fluid crosses an edge. Why it then grows exponentially, instead of just piling up, I never fully derived. My best explanation is that the one-sided closures, the halo and the edge-flux averaging all treat the checkerboard slightly differently from the interior, which lets the checkerboards in \(h\) and in the wind push on each other at the edges. That fits where it starts, its steady growth rate, and the fact that damping either field stops it. But it's an inference, not a proof.</p>
+
+<h3>Three attempts at damping it</h3>
+
+<p>The standard fix is hyperviscosity: an extra \(\nabla^4\) damping term. Its strength scales with wavenumber to the fourth power, so it hits a 2-cell checkerboard hard and barely touches the large-scale flow. Getting it right took me three tries.</p>
+
+<p><strong>Try 1: damp both \(h\) and the wind, with a fixed time scale.</strong> I set the damping by how long it takes to kill a checkerboard, \(\tau\). At C48, \(\tau = 6\) h only slowed the growth down. 2 h stopped it. But at C96 the same 2 h held for three days and then the checkerboard crept back (\(\ell_\infty\) went from \(1.6\times10^{-7}\) to \(1.6\times10^{-6}\) by day 5). That made sense once I thought about it: grid-scale noise grows at a rate of roughly wind speed over cell width, so halving the cells doubles the growth rate. The damping time has to shrink with the cells.</p>
+
+<p><strong>Try 2: a shorter time scale, still damping \(h\).</strong> With \(\tau = 15\) min at C48 the checkerboard vanished. But the smooth error got about 6× worse, from \(\ell_2 = 2.6\times10^{-6}\) to \(1.5\times10^{-5}\). This one confused me until I did the arithmetic. Williamson 2's height field is mostly one huge degree-2 spherical harmonic, a 1,270 m bulge at the equator, whose \(\nabla^4\) eigenvalue is \((6/a^2)^2\). With \(\nu\approx 8.8\times10^{15}\ \mathrm{m^4/s}\), that pattern loses about \(8\times10^{-5}\) of its height over 5 days, around 10 cm. The wind is degree 1, so it's damped about 9× more slowly. The height and wind drift out of the balance that keeps the flow steady, and that mismatch was the extra error. \(\nabla^4\) is very selective, but not perfectly.</p>
+
+<p><strong>Try 3: damp only the wind, and make solid-body rotation completely immune.</strong> Damping the wind alone turned out to be enough to stop the growth, and leaving \(h\) alone means the large-scale height field and the mass are never touched. To avoid writing a vector Laplacian on a curved grid, I convert the wind to 3D Cartesian components \(U_c\), damp each one as an ordinary scalar, and project back. Then one more trick: each Cartesian component of a solid-body rotation is a degree-1 spherical harmonic, with \(\nabla^2 U_c = -2U_c/a^2\). So if I shift the first Laplacian by \(+2/a^2\), the damping is exactly zero on solid-body rotation:</p>
+
+$$\left.\frac{\partial u_i}{\partial t}\right|_{\text{hyper}} = -\nu \sum_{c=1}^{3} (a\mathbf e_i)_c\,\nabla^2\!\left(\nabla^2 + \frac{2}{a^2}\right)U_c, \qquad \mathbf U = u^\alpha a\mathbf e_\alpha + u^\beta a\mathbf e_\beta. \tag{19}$$
+
+<pre><code>for (let c = 0; c &lt; 3; c++) {
+  const eA = this.eA[c], eB = this.eB[c];
+  // One Cartesian component of U = u^alpha (a e_alpha) + u^beta (a e_beta), halos included.
+  for (let k = 0; k &lt; U.length; k++) U[k] = cA[k] * eA[k] + cB[k] * eB[k];
+  laplacian(geo, this.pairs, U, this.faces, L1);
+  for (let k = 0; k &lt; U.length; k++) L1[k] += shift * U[k];
+  fillScalarHalo(this.halo, L1);
+  laplacian(geo, this.pairs, L1, this.faces, L2);
+  for (let p = 0; p &lt; NUM_PANELS; p++) {
+    for (let j = 0; j &lt; N; j++) {
+      let k = padIndex(L, p, 0, j);
+      for (let i = 0; i &lt; N; i++, k++) {
+        outA[k] -= nu * L2[k] * eA[k];
+        outB[k] -= nu * L2[k] * eB[k];
+      }
+    }
+  }
+}</code></pre>
+<p class="src">solver/cpu/hyperviscosity.ts. <code>L1</code> is \((\nabla^2 + 2/a^2)U_c\); its halo is refilled before the second Laplacian.</p>
+
+<p>The Laplacian here is only second order, \(\nabla^2\phi = \frac{1}{\sqrt g}\partial_i(\sqrt g\,g^{ij}\partial_j\phi)\) done as a finite volume, with edge fluxes averaged the same way as the mass flux. That's enough for a term whose only job is to remove noise at the grid scale.</p>
+
+<p>To pick the strength, I tie it to \(\tau\), the time to damp a 2-cell checkerboard in the smallest cells. That pattern's Laplacian eigenvalue is \(-8/\Delta x^2\) (\(-4/\Delta x^2\) from each direction), so its \(\nabla^4\) eigenvalue is \(64/\Delta x^4\), and</p>
+
+$$\nu = \frac{\Delta x_{\min}^4}{64\,\tau}, \qquad \tau(N) = 15\ \text{min}\times\frac{48}{N}. \tag{20}$$
+
+<pre><code>export function hyperTau(N: number): number {
+  return (15 * 60 * 48) / N;
+}</code></pre>
+<p class="src">solver/cpu/constants.ts. This is \(\tau(N)\) in (20); the constructor in hyperviscosity.ts turns it into \(\nu\).</p>
+
+<p>Since \(\Delta t\) also scales with cell size, \(\Delta t/\tau\) stays the same at every resolution: about 0.4 for Williamson 2 (356 s / 900 s at C48) and 0.2 for the deeper Galewsky case. Both are well inside where RK4 is stable for a damping term. With this, Williamson 2 at C48 reached \(\ell_2 = 1.52\times10^{-6}\), better than try 1's \(2.6\times10^{-6}\), with no checkerboard and clean fourth-order convergence. I should be honest that the margin is thin, though. On the Galewsky jet at C48, making \(\tau\) twice as long blew up on day 2 or 3, and 4× and 8× blew up too.</p>
+
+<h2 id="forcing">8. Choosing what to simulate</h2>
+
+<p>Since there's no forcing and no physics beyond (9) to (11) plus the damping (19), the starting state is the entire input. I used two published test cases, picked because they have known answers.</p>
+
+<h3>A flow that should never change: Williamson case 2</h3>
+
+<p>Williamson et al. (1992) is the standard set of shallow-water tests. Case 2 is the whole atmosphere rotating as a solid body, with the height field set so that pressure exactly balances the Coriolis force. That balance is called geostrophic balance, and in the real atmosphere it's why wind flows along pressure contours instead of straight down them. Because it's balanced, the exact answer at any time is just the starting state, so any change is error.</p>
+
+<p>The clever part is that the rotation axis can be tilted from the pole by \(\alpha_r \in \{0, \pi/4, \pi/2\}\), with the Coriolis axis tilted along with it. That sends the same flow across panel edges and corners at different angles, which is exactly what I wanted to stress. With \(s = \mathbf P\cdot\hat{\boldsymbol\omega}\), the sine of latitude measured from the tilted axis,</p>
+
+$$\mathbf u = u_0\,\hat{\boldsymbol\omega}\times\mathbf P, \qquad g h = g h_0 - \left(a\Omega u_0 + \tfrac12 u_0^2\right)s^2, \qquad u_0 = \frac{2\pi a}{12\ \text{days}},\ g h_0 = 2.94\times10^4\ \mathrm{m^2/s^2}. \tag{21}$$
+
+<p>That's a wind of \(u_0 \approx 38.6\) m/s and a depth of about 3 km. I set \(h\) to exact cell averages using 3-point Gauss-Legendre quadrature in each direction, and the wind to exact point values projected onto \(a\mathbf e_\alpha, a\mathbf e_\beta\).</p>
+
+<pre><code>forInterior(model.geo, (k, _l, p, i, j) =&gt; {
+  const P = position(model.geo, k);
+  // axis x P is the unit eastward direction of the tilted rotation, scaled by cos(latitude).
+  const wind: Vec3 = [
+    u0 * (axis[1] * P[2] - axis[2] * P[1]),
+    u0 * (axis[2] * P[0] - axis[0] * P[2]),
+    u0 * (axis[0] * P[1] - axis[1] * P[0]),
+  ];
+  const [uA, uB] = toCovariant(model.geo, p, i, j, wind);
+  state.h[k] = exactH[k] = cellMean(model.geo, p, i, j, (Q) =&gt; {
+    const s = Q[0] * axis[0] + Q[1] * axis[1] + Q[2] * axis[2];
+    return (GH0 - c * s * s) / planet.gravity;
+  });
+  state.uA[k] = uA;
+  state.uB[k] = uB;
+});</code></pre>
+<p class="src">testcases/williamson2.ts. The cross product is \(\hat{\boldsymbol\omega}\times\mathbf P\) from (21), and <code>c</code> is \(a\Omega u_0 + u_0^2/2\).</p>
+
+<h3>A jet that tears itself apart: Galewsky et al. (2004)</h3>
+
+<p>This is the test I was really building towards, because it looks like weather. It's a narrow jet stream around 45°N, set up in exact balance, then nudged with a small bump in the height field. The jet is barotropically unstable, meaning that small wiggles in it feed on the jet's own shear and grow. Over about six days the bump grows into waves that roll up into a chain of vortices. The jet's profile is a smooth bump between \(\varphi_0 = \pi/7\) and \(\varphi_1 = \pi/2 - \varphi_0\):</p>
+
+$$u(\varphi) = \frac{u_{\max}}{e_n}\exp\!\left[\frac{1}{(\varphi-\varphi_0)(\varphi-\varphi_1)}\right],\quad \varphi_0<\varphi<\varphi_1, \qquad e_n = \exp\!\left[-\frac{4}{(\varphi_1-\varphi_0)^2}\right],\ u_{\max} = 80\ \text{m/s}. \tag{22}$$
+
+<p>To be balanced, the height has to satisfy the north-south momentum equation with no time dependence. For a purely east-west flow that's the gradient-wind relation, \(g\,dh/d\varphi = -a u\,(f + u\tan\varphi/a)\). Integrating it gives</p>
+
+$$g h(\varphi) = g h_0 - \int_{\varphi_0}^{\varphi} a\,u(\varphi')\left[2\Omega\sin\varphi' + \frac{u(\varphi')\tan\varphi'}{a}\right]d\varphi', \tag{23}$$
+
+<p>with \(h_0\) chosen so the average depth is 10 km. This integral has no closed form, so I tabulate it at 4,000 intervals using 4-point Gauss-Legendre quadrature, then interpolate between table entries with cubic Hermite polynomials. Hermite interpolation needs the slope at each node, and the integrand itself gives that slope exactly.</p>
+
+<pre><code>slope(phi: number): number {
+  const u = jetSpeed(phi);
+  return this.a * u * (2 * this.omega * Math.sin(phi) + (u * Math.tan(phi)) / this.a);
+}</code></pre>
+<p class="src">testcases/galewsky.ts. This is the integrand of (23), which also gives the exact slope at each node for the Hermite interpolation.</p>
+
+<p>The nudge is a height bump of \(\hat h = 120\) m centred at \(\lambda = 0,\ \varphi_2 = \pi/4\):</p>
+
+$$h'(\lambda,\varphi) = \hat h\cos\varphi\,\exp\!\left[-\left(\frac{\lambda}{1/3}\right)^2\right]\exp\!\left[-\left(\frac{\varphi_2-\varphi}{1/15}\right)^2\right]. \tag{24}$$
+
+<p>Because of the \(\cos\varphi\) factor, its peak on the grid is about 85 m. Without the bump the jet should stay put forever, which gives a second, stricter test: does the model hold a balanced jet steady?</p>
+
+<h2 id="gpu">9. Moving it to the GPU</h2>
+
+<p>The CPU version worked, but six model days of Galewsky at C96 took about 7 minutes in Node. I wanted to watch it live, so the next step was WebGPU compute shaders. I kept the numerics identical: one shader pass per CPU function, with the geometry and halo tables still built on the CPU in float64 and uploaded once. That way I could feed the same input to both and compare every pass.</p>
+
+<h3>Float32 and a trick with the depth</h3>
+
+<p>The first obstacle was that WebGPU has no float64. Float32 keeps about 7 significant digits, and the pressure gradient \(\partial(gh)/\partial\alpha\) subtracts neighbouring values of \(gh\approx 9.8\times10^4\ \mathrm{m^2/s^2}\) that agree in most of those digits. Most of the precision cancels away.</p>
+
+<p>The fix was to store \(h' = h - H_0\) instead, where \(H_0\) is the mean depth. The gradient of a constant is zero, so \(\Phi = K + gh'\) gives exactly the same force using numbers 10 to 30 times smaller, and the cancellation error shrinks by the same factor. The mass flux still needs the full depth, \(\sqrt g\,(H_0 + h')\,u^\alpha\), but that's a multiplication, which doesn't lose precision the way a subtraction does.</p>
+
+<pre><code>// g H0 is constant, so leaving it out of Phi changes no gradient.
+M[P.oPhi + k] = 0.5 * (uA * cA + uB * cB) + P.g * h;
+let sh = M[P.oSqrtG + l] * (P.H0 + h);
+M[P.oFA + k] = sh * cA;
+M[P.oFB + k] = sh * cB;</code></pre>
+<p class="src">solver/gpu/shaders/swe.wgsl, <code>prep</code> pass.</p>
+
+<p>This exposed a detail I'd never noticed on the CPU. The average-to-point conversion (14) applied to a constant doesn't give back exactly that constant, because \(\sqrt g\) varies across the cell. It gives \(1 + O(\Delta^4)\). On the CPU that's just part of the scheme. On the GPU, \(H_0\) no longer passes through (14), so to match the CPU exactly the shader adds back \(H_0(M_1 - 1)\), where \(M_1\) is the precomputed point value of a field whose cell averages are all 1.</p>
+
+<h3>Lots of small passes</h3>
+
+<p>I packed every array into one big float32 buffer and one int32 buffer, with offsets passed in a uniform block. That way every pass binds the same four resources, well under WebGPU's default limit of 8 storage buffers. One evaluation of the right-hand side is 36 passes: average to point, two halo fills, a prep pass, four for the flux divergence, momentum, and nine per Cartesian component for the hyperviscosity. An RK4 step is four of those plus eight small combine passes, 152 in all, and I record 50 steps into one command buffer. The halo fills write in place, which is only safe because of the clamped stencils from section 6: they always read interior cells.</p>
+
+<h3>Did it match?</h3>
+
+<p>After one model day at C48, GPU and CPU differ by at most \(3.8\times10^{-7}\) of the height range and \(1.6\times10^{-6}\) of the maximum wind for Williamson 2, and \(2.8\times10^{-6}\) and \(1.2\times10^{-6}\) for Galewsky. Five-day Williamson 2 errors match the CPU to three digits at C24 and C48. At C96 the GPU gets \(\ell_2 = 1.40\times10^{-7}\) against the CPU's \(1.09\times10^{-7}\). That's not a bug: the true error there is about a third of a millimetre on 3 km of fluid, which is about the size of float32 rounding in \(h'\) built up over five days.</p>
+
+<p>And the speed: on my GPU a step takes 1.18 ms at C48, 2.75 ms at C96 and 28.5 ms at C192, so six model days at C96 take about 15 s instead of 7 minutes. C48 is only 2.3× faster than C96 despite having a quarter of the cells, which tells me that at small sizes the cost is mostly launching 152 little passes, not the arithmetic. C192 is about 10× slower than C96 per step for 4× the cells, and I haven't worked out why yet.</p>
+
+<h2 id="rendering">10. Making it look like something</h2>
+
+<p>My first live view coloured each cell as a flat square, and honestly it wasn't much to look at. You could see the cells, and the panel edges showed up as seams. So I rewrote it to colour each pixel instead.</p>
+
+<p>The globe is a three.js sphere with a custom fragment shader. For each pixel, the shader takes the direction from the globe's centre, picks the panel with the same largest-component rule as the halo, computes \((\alpha,\beta)\) with two arctangents, and samples a 6-layer texture at that point. The GPU's bilinear filtering blends the four nearest cells, and the colour map is applied after blending, so colours change smoothly instead of in steps.</p>
+
+<pre><code>vec3 pc = panelCoords(normalize(vDir));
+vec2 ab = atan(pc.yz);
+vec2 uv = (((ab + QP) / (2.0 * QP)) * N + 1.0) / (N + 2.0);
+float x = texture(field, vec3(uv, pc.x)).r * 2.0 - 1.0;</code></pre>
+<p class="src">view/globeField.ts. Texture coordinates are offset by one texel because each layer carries a one-cell border.</p>
+
+<p>Sampling per pixel brought back the seam problem, for the same reason the solver needed halos: near a panel edge, bilinear filtering wants the neighbouring panel's cells, and a plain texture just clamps at its edge. So I used the same fix. Each texture layer is \((N+2)\times(N+2)\): the \(N\times N\) cells plus a one-cell border, filled by bilinear interpolation of the neighbouring panel at each border texel's centre, using the same geometric lookup as the halo. That made the seams disappear.</p>
+
+<p>About 10 times a second I read the field being shown (vorticity, height anomaly or wind speed) back from the GPU, one float per cell, and store it in the texture as \(v/v_{\text{scale}}\) clipped to \([-1, 1]\) in 8 bits. 256 levels is more than the eye can tell apart in a colour ramp, and 8-bit textures can be filtered on every WebGL2 device, which float textures can't. Values near zero are drawn transparent over a dark ocean, so only the jet, the vortices and the filaments between them light up. Finally, I added coastlines from Natural Earth's 1:50m dataset just above the surface so you can tell where you are. They're only for orientation and don't affect the flow.</p>
+
+<figure class="img-slot" id="fig-6"><!-- INSERT IMAGE fig-6: live globe, Galewsky with bump, C96, GPU, vorticity field, viewed from above the North Pole (rotation speed 0, drag the globe down) at about day 6, with coastlines visible --><div class="placeholder">[FIG 6: the live globe at day 6, vorticity, viewed over the North Pole]</div><figcaption>Figure 6. The live view at day 6 of the Galewsky case at C96. Red is positive (cyclonic) vorticity, blue negative; calm regions are transparent.</figcaption></figure>
+
+<h2 id="validation">11. How well does it work?</h2>
+
+<h3>Testing the pieces</h3>
+
+<p>Because I didn't trust myself with the geometry, every property the solver depends on has a unit test: positions round-trip to better than \(10^{-12}\); cell areas sum to \(4\pi a^2\) to about \(10^{-16}\); the closed-form metric matches dot products of the numerically built basis; \(g^{ij}g_{jk}\) is the identity; the halo reproduces constants exactly and converges at fourth order for smooth scalars and vectors; and the vector rotation (17) is exact to \(10^{-12}\) when fed exact components.</p>
+
+<h3>Williamson case 2</h3>
+
+<p>Here are the height errors after 5 days, normalized as in Williamson's paper, with the convergence rate from the previous resolution in brackets:</p>
+
+<table>
+<tr><th>Tilt</th><th>Grid</th><th>\(\Delta t\)</th><th>\(\ell_2\)</th><th>\(\ell_\infty\)</th><th>Mass drift</th></tr>
+<tr><td>0</td><td>C24</td><td>725 s</td><td>2.42e-5</td><td>5.34e-5</td><td>3e-15</td></tr>
+<tr><td>0</td><td>C48</td><td>356 s</td><td>1.52e-6 (3.99)</td><td>3.47e-6 (3.94)</td><td>4e-15</td></tr>
+<tr><td>0</td><td>C96</td><td>177 s</td><td>9.44e-8 (4.01)</td><td>2.24e-7 (3.95)</td><td>1e-14</td></tr>
+<tr><td>π/4</td><td>C24</td><td>724 s</td><td>2.76e-5</td><td>7.55e-5</td><td>3e-15</td></tr>
+<tr><td>π/4</td><td>C48</td><td>356 s</td><td>1.75e-6 (3.99)</td><td>4.79e-6 (3.98)</td><td>−7e-15</td></tr>
+<tr><td>π/4</td><td>C96</td><td>177 s</td><td>1.09e-7 (4.00)</td><td>2.98e-7 (4.01)</td><td>4e-15</td></tr>
+<tr><td>π/2</td><td>C24</td><td>725 s</td><td>2.44e-5</td><td>5.51e-5</td><td>2e-15</td></tr>
+<tr><td>π/2</td><td>C48</td><td>356 s</td><td>1.52e-6 (4.00)</td><td>3.46e-6 (3.99)</td><td>−4e-16</td></tr>
+<tr><td>π/2</td><td>C96</td><td>177 s</td><td>9.42e-8 (4.01)</td><td>2.24e-7 (3.95)</td><td>2e-14</td></tr>
+</table>
+
+<p>A rate of 4 means the error falls 16× each time the grid spacing halves, which is exactly what a fourth-order scheme should do, and it holds for all three tilts. That includes \(\pi/4\), where the flow passes right over cube corners, which was the case I was most nervous about. The worst-case rates also come out at 4, rather than the 3 I predicted for the edge cells, so that third-order term seems to be small at these resolutions. Mass is conserved to rounding error. Energy and potential enstrophy aren't exactly conserved by the scheme, but they drift by only about \(10^{-9}\) at C96. The C48 error for the \(\pi/4\) case is smooth and about 1 cm on 3 km of fluid, with a faint outline of the cube edges and no checkerboard.</p>
+
+<figure class="img-slot" id="fig-7"><!-- INSERT IMAGE fig-7: map of h - exact for Williamson 2, rotation pi/4, C48, day 5, with hyperviscosity on (images/weather-model/w2-error.png already has this) --><div class="placeholder">[FIG 7: Williamson 2 height error at day 5, C48, tilt π/4]</div><figcaption>Figure 7. Height error after 5 days of Williamson case 2 at C48 with the flow tilted 45°. The error is about 1 cm on a 3 km layer, smooth, with a faint outline of the cube edges.</figcaption></figure>
+
+<h3>The Galewsky jet</h3>
+
+<p>This was the moment the project felt real. At C96 the perturbed jet starts to meander by day 4 and rolls up into vortices on days 5 and 6, downstream of the bump, with a weaker wave on the far side of the globe. Qualitatively it matches the figures in the paper.</p>
+
+<figure class="img-slot" id="fig-8"><!-- INSERT IMAGE fig-8: three stacked vorticity bands (10N to 80N, longitude -180 to 180, colour range +/-1.5e-4 1/s) at days 4, 5 and 6 for C96 with the bump (images/weather-model/galewsky-c96-day4/5/6.jpg) --><div class="placeholder">[FIG 8: Galewsky vorticity, 10–80°N, at days 4, 5 and 6, C96]</div><figcaption>Figure 8. Relative vorticity of the Galewsky jet at C96 on days 4, 5 and 6, from 10°N to 80°N, colour range ±1.5×10⁻⁴ s⁻¹. The bump is at the centre longitude.</figcaption></figure>
+
+<p>The unperturbed jet was a tougher test. At C96 its biggest wind change stays under 7 m/s through day 4 (0.4, 0.9, 2.1 and 6.4 m/s on days 1 to 4), but then it grows to 20 and 48 m/s on days 5 and 6 as a wavenumber-4 pattern takes off. At C48 that pattern dominates from the start: runs with and without the bump look nearly identical by day 6. So C48 simply can't do this test.</p>
+
+<p>My first suspicion was a bug at the panel edges. It isn't one. When I fed the exact balanced jet into the right-hand side, where the tendency should be zero, the leftover was \(1.4\times10^{-4}\ \mathrm{m/s^2}\) near panel edges and \(1.1\times10^{-4}\) inside the panels at C48, and \(9.7\times10^{-6}\) and \(8.1\times10^{-6}\) at C96. It falls about 15× per doubling and is nearly as big inside the panels as at the edges. That points to resolution: the jet's shear zones are only a few C48 cells wide. The cube does shape that error into a pattern that repeats every 90° of longitude, though, which is exactly a wavenumber-4 nudge to an unstable jet. Tuning \(\tau\) didn't save C48: halving it smoothed the field but kept the wave-4, and doubling it blew up.</p>
+
+<figure class="img-slot" id="fig-9"><!-- INSERT IMAGE fig-9: change in vorticity (day 6 minus day 0) for the Galewsky jet without the bump at C48, full globe lon-lat map, colour range +/-1.5e-5 1/s (images/weather-model/c48-nobump-change.jpg) --><div class="placeholder">[FIG 9: unperturbed jet at C48, vorticity change by day 6 showing the wave-4 pattern]</div><figcaption>Figure 9. The unperturbed Galewsky jet at C48: vorticity change after 6 days. The four-lobed pattern comes from the grid, not from any perturbation.</figcaption></figure>
+
+<p>Over six days at C96 on the CPU, total mass changes by \(-3\times10^{-14}\), energy drops by \(5.1\times10^{-5}\) and potential enstrophy by 1.2%. Most of that happens after day 4, as filaments thin down to the grid scale and the damping removes them, and neither quantity ever goes up. On the GPU the energy and enstrophy curves match the CPU, and mass wanders between \(3\times10^{-10}\) and \(6\times10^{-10}\). That's float32 rounding of \(h'\) with no trend.</p>
+
+<figure class="img-slot" id="fig-10"><!-- INSERT IMAGE fig-10: the three drift plots (mass, energy, potential enstrophy) from debug.html?only=galewsky for the 6-day C96 GPU run (images/weather-model/gpu-drift.png) --><div class="placeholder">[FIG 10: relative drift of mass, energy and potential enstrophy over 6 days, C96, GPU]</div><figcaption>Figure 10. Relative drift over 6 days of the Galewsky case at C96 on the GPU. Mass stays below 6×10⁻¹⁰; energy and enstrophy decrease monotonically.</figcaption></figure>
+
+<h3>What's still wrong with it</h3>
+
+<ul>
+<li>The A-grid has the checkerboard mode, and the model relies on hyperviscosity to hold it down. The margin is narrow: damping that's 2× weaker blows up the Galewsky case at C48. A staggered C-grid would remove the mode instead of fighting it, and it's the most likely next big change.</li>
+<li>My explanation of why the checkerboard grows, rather than just accumulating, comes from watching how it behaves. I haven't derived it.</li>
+<li>Near panel edges the scheme is third order in the worst case on paper, because jagged halo errors get differentiated, even though the measured rates are 4.</li>
+<li>C48 is too coarse for the Galewsky jet, and C96 holds the unperturbed jet for about four days.</li>
+<li>On the GPU, float32 limits the height to about \(10^{-7}\) relative accuracy, which shows up in the C96 Williamson 2 result, and mass is only conserved to about \(10^{-9}\).</li>
+<li>The C192 GPU step is slower than its cell count predicts, and I don't know why yet.</li>
+<li>There's no topography, forcing, temperature or real weather data yet. Right now it's a dynamical core tested on idealized cases.</li>
+</ul>
+
+</main>
+<script>
+  const toggle = document.getElementById("themeToggle");
+  const setIcon = () => { toggle.textContent = document.body.classList.contains("dark") ? "🔆" : "🌙"; };
+  setIcon();
+  toggle.onclick = () => {
+    document.body.classList.toggle("dark");
+    localStorage.theme = document.body.classList.contains("dark") ? "dark" : "light";
+    setIcon();
+  };
+</script>
+</body>
+</html>
