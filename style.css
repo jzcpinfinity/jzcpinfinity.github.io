@@ -141,6 +141,9 @@ section {
   justify-content: center;
 }
 
+.sim-title a, .sim-title a:visited,
+.sim-desc a, .sim-desc a:visited { color: var(--link); }
+
 .video-row video,
 .video-row img {
   width: 220px;
