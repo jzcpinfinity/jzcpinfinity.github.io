@@ -81,6 +81,8 @@
   <li><a href="#motivation">Motivation</a></li>
   <li><a href="#setup">Constants</a></li>
   <li><a href="#grid">The grid</a></li>
+  <li><a href="#Simulating Equations">Simulating equations</a></li>
+  <li><a href="#metric">Computing distance</a></li>
   <li><a href="#more">More to come</a></li>
 </ol>
 </nav>
@@ -170,6 +172,18 @@ $$\mathbf P(\alpha,\beta) = \frac{\mathbf c(X,Y)}{\lVert \mathbf c(X,Y)\rVert}, 
 <p>The grid points are spaced evenly in angle, using \(X = \tan\alpha\), not evenly across the cube face. With even spacing on the face, cells near the edges span only about half the angle of those at the centre (0.51x at C48). Spacing them by angle keeps the biggest and smallest cells within a factor of about 1.4 of each other.</p>
 
 <p>A grid with \(N\) cells along each panel edge is called C\(N\). It has \(6N^2\) cells and spacing \(\Delta = \pi/(2N)\) radians. My main grid is C96: 55,296 cells, about the same as the 64,800 of a \(1^\circ\) lat-lon grid. Its cells range from 74.3 km to 104.2 km wide, and with the test cases I plan to run has a timestep of at 95 seconds.</p>
+
+<h2 id="Simulating Equations">4. The Simulating Equations</h2>
+
+<p>I'm treating the atmosphere as a single thin layer of fluid wrapped around a spinning Earth. Each cell stores the height of the fluid at its centre, and differences in height between cells create pressure gradients, pushing fluid from high areas toward low ones. My equations are:</p>
+
+$$\frac{\partial \mathbf u}{\partial t} + (\mathbf u\cdot\nabla)\mathbf u + f\,\hat{\mathbf k}\times\mathbf u + g\nabla h = 0, \qquad \frac{\partial h}{\partial t} + \nabla\cdot(h\mathbf u) = 0.$$
+
+<p>Here \(\mathbf u\) is the horizontal wind, \(\hat{\mathbf k}\) is the outward unit normal, \(g\) is gravity, and \(f = 2\Omega\sin\varphi\) is the Coriolis parameter at latitude \(\varphi\). The first equation is effectively Newton's second law for a column of fluid, while the second enforces conservation of mass.</p>
+
+<h2 id="metric">3. Computing Distance</h2>
+
+<p>The solver does its calculus in \((\alpha,\beta)\), but the physics happens in meters. 
 
 <p class="date"><strong><em>Further documentation in progress.</em></strong></p>
 
